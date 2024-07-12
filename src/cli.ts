@@ -74,18 +74,22 @@ function testDedent() {
 }
 
 function readme() {
-  let g = grm`\
+  let g0 = grm`\
     Do you want a joke or a poem? A ${select("joke", "poem")}.
     Okay, here is a one-liner: "${gen({ stop: '"' })}"
   `;
-  g = join(
+  let g1 = join(
     str("Do you want a joke or a poem? A "),
     select("joke", "poem"),
+    // str() can be omitted:
     '.\nOkay, here is a one-liner: "',
     gen({ stop: '"' }),
-    str('"')
+    '"\n'
   );
-  console.log(g.pp());
+  let s0 = g0 + "";
+  let s1 = g1 + "";
+  console.log({ s0, s1 });
+  assert(s0 == s1);
 }
 
 function main() {

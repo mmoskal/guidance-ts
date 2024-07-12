@@ -30,6 +30,10 @@ export abstract class GrammarNode extends BaseNode {
     return new Join([this, GrammarNode.from(other)]);
   }
 
+  toString() {
+    return this.pp();
+  }
+
   pp() {
     const useCount = new Map();
 
