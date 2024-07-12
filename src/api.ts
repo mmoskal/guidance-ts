@@ -87,7 +87,6 @@ export interface NodeGenGrammar extends NodeProps {
   grammar: GrammarId;
   /// Override sampling temperature.
   temperature?: number;
-  max_tokens_grm: number;
 }
 
 export interface NodeSelect extends NodeProps {

@@ -20,6 +20,10 @@ export class RegexNode extends BaseNode {
     super();
   }
 
+  getChildren(): RegexNode[] | undefined {
+    return this.children;
+  }
+
   serializeInner(rec: (n: RegexNode) => number): RegexJSON {
     const simple = JSON.parse(JSON.stringify(this.simple));
     const key = Object.keys(simple)[0];

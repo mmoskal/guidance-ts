@@ -1,3 +1,4 @@
+import { Extension } from "typescript";
 import {
   GrammarId,
   GrammarWithLexer,
@@ -5,9 +6,10 @@ import {
   NodeProps,
   RegexJSON,
   RegexSpec,
+  TopLevelGrammar,
 } from "./api";
 import { BaseNode, RegexNode } from "./regexnode";
-import { assert, panic } from "./util";
+import { assert } from "./util";
 
 export abstract class GrammarNode extends BaseNode {
   maxTokens?: number;
@@ -18,6 +20,10 @@ export abstract class GrammarNode extends BaseNode {
   }
 
   abstract serializeInner(s: Serializer): NodeJSON;
+
+  serialize(): TopLevelGrammar {
+    return new NestedGrammar(this).serialize();
+  }
 
   pp() {
     const useCount = new Map();
@@ -76,6 +82,8 @@ export class Gen extends GrammarNode {
 
   constructor(public regex: RegexNode, public stop?: RegexNode) {
     super();
+    Serializer.checkRegex(this.regex);
+    Serializer.checkRegex(this.stop);
   }
 
   override ppInner() {
@@ -167,6 +175,7 @@ export class Lexeme extends GrammarNode {
 
   constructor(public rx: RegexNode, public contextual?: boolean) {
     super();
+    Serializer.checkRegex(rx);
   }
 
   override ppInner() {
@@ -185,39 +194,112 @@ export class Lexeme extends GrammarNode {
   }
 }
 
+export class NestedGrammar extends GrammarNode {
+  public temperature?: number;
+
+  constructor(public start: GrammarNode, public skip_rx?: RegexNode) {
+    super();
+    Serializer.checkRegex(this.skip_rx);
+  }
+
+  override serialize(): TopLevelGrammar {
+    return Serializer.grammar(this);
+  }
+
+  override getChildren() {
+    return [this.start];
+  }
+
+  override serializeInner(s: Serializer): NodeJSON {
+    const gid = s.saveGrammar(this);
+    return {
+      GenGrammar: {
+        grammar: gid,
+        temperature: this.temperature,
+      },
+    };
+  }
+
+  override ppInner(children?: string[]): string {
+    return `grammar(${children[0]})`;
+  }
+}
+
 function nodeProps(node: NodeJSON): NodeProps {
   return Object.values(node)[0];
 }
 
-export class Serializer {
-  private cache: Map<BaseNode, number> = new Map();
+class Serializer {
+  private nodeCache: Map<GrammarNode, number> = new Map();
+  private grammarCache: Map<NestedGrammar, number> = new Map();
+  private rxCache: Map<RegexNode, number> = new Map();
   private grmNodes: NodeJSON[] = [];
   private rxNodes: RegexJSON[] = [];
   private rxHashCons: Map<string, number> = new Map();
+  private grammars: GrammarWithLexer[] = [];
+  private grammarSrc: NestedGrammar[] = [];
 
   constructor() {
     this.serialize = this.serialize.bind(this);
     this.regex = this.regex.bind(this);
   }
 
-  static grammar(top: GrammarNode): GrammarWithLexer {
-    // TODO Grammar node
+  saveGrammar(n: NestedGrammar) {
+    let gid = this.grammarCache.get(n);
+    if (gid !== undefined) return gid;
+    gid = this.grammars.length;
+    this.grammars.push({
+      greedy_lexer: false, // no longer used
+      contextual: false,
+      greedy_skip_rx: undefined,
+      rx_nodes: [],
+      nodes: [],
+    });
+    this.grammarSrc.push(n);
+    this.grammarCache.set(n, gid);
+    return gid;
+  }
+
+  private fixpoint() {
+    // note that this.grammarSrc.length grows during this loop
+    for (let i = 0; i < this.grammarSrc.length; ++i) {
+      const g = this.grammars[i];
+      this.grmNodes = g.nodes;
+      this.rxNodes = g.rx_nodes;
+      this.rxHashCons.clear();
+      this.nodeCache.clear();
+      this.rxCache.clear();
+      const s = this.grammarSrc[i];
+      const id = this.serialize(s.start);
+      if (s.skip_rx) g.greedy_skip_rx = this.regex(s.skip_rx);
+      assert(id == 0);
+    }
+  }
+
+  static grammar(top: NestedGrammar): TopLevelGrammar {
     const s = new Serializer();
-    const id = s.serialize(top);
+    const id = s.saveGrammar(top);
     assert(id == 0);
+    s.fixpoint();
     return {
-      nodes: s.grmNodes,
-      greedy_lexer: false,
-      rx_nodes: s.rxNodes,
+      grammars: s.grammars,
     };
   }
 
+  /**
+   * Throws is regex is recursive.
+   */
+  static checkRegex(n: RegexNode) {
+    const s = new Serializer();
+    s.regex(n);
+  }
+
   serialize(n: GrammarNode): GrammarId {
-    let sid = this.cache.get(n);
+    let sid = this.nodeCache.get(n);
     if (sid !== undefined) return sid;
     sid = this.grmNodes.length;
     this.grmNodes.push(null);
-    this.cache.set(n, sid);
+    this.nodeCache.set(n, sid);
     const serial = n.serializeInner(this);
     const props = nodeProps(serial);
     if (n.maxTokens !== undefined) props.max_tokens = n.maxTokens;
@@ -226,24 +308,47 @@ export class Serializer {
     return sid;
   }
 
-  regex(n?: RegexNode): RegexSpec {
-    if (n === undefined) n = RegexNode.noMatch();
-    let sid = this.cache.get(n);
-    if (sid === null) throw new Error("circular regex");
-    this.cache.set(n, null);
-    const serial = n.serializeInner(this.regex);
-    const key = JSON.stringify(serial);
-    const cached = this.rxHashCons.get(key);
-    if (cached !== undefined) {
-      sid = cached;
-    } else {
-      sid = this.rxNodes.length;
-      this.rxNodes.push(serial);
-      this.rxHashCons.set(key, sid);
+  regex(top?: RegexNode): RegexSpec {
+    if (top === undefined) top = RegexNode.noMatch();
+
+    const cache = this.rxCache;
+
+    const lookup = (n: RegexNode) => {
+      const r = cache.get(n);
+      if (r == null) throw new Error("circular regex");
+      assert(typeof r == "number");
+      return r;
+    };
+
+    const missing = (n: RegexNode) => !cache.has(n);
+
+    const todo = [top];
+    while (todo.length > 0) {
+      const n = todo.pop();
+      let sid = cache.get(n);
+      if (sid === null) throw new Error("circular regex");
+      cache.set(n, null);
+
+      const unfinished = n.getChildren()?.filter(missing);
+      if (unfinished?.length) {
+        unfinished.reverse();
+        todo.push(n, ...unfinished);
+        continue;
+      }
+
+      const serial = n.serializeInner(lookup);
+      const key = JSON.stringify(serial);
+      const cached = this.rxHashCons.get(key);
+      if (cached !== undefined) {
+        sid = cached;
+      } else {
+        sid = this.rxNodes.length;
+        this.rxNodes.push(serial);
+        this.rxHashCons.set(key, sid);
+      }
+      cache.set(n, sid);
     }
-    this.cache.set(n, sid);
-    return sid;
+
+    return lookup(top);
   }
 }
-
-function ppGrammar(top: GrammarNode) {}
