@@ -1,5 +1,21 @@
-import { gen, grm, keyword, lexeme, oneOrMore, select } from "./index";
-import { assert } from "./util";
+import {
+  gen,
+  GrammarNode,
+  grm,
+  keyword,
+  lexeme,
+  oneOrMore,
+  select,
+} from "./index";
+import { assert, panic } from "./util";
+
+function checkStr(g: GrammarNode, expected: string) {
+  const actual = JSON.parse(g.pp());
+  if (actual != expected) {
+    console.log({ actual, expected });
+    panic();
+  }
+}
 
 function testDedent() {
   let g = grm`\
@@ -8,14 +24,14 @@ function testDedent() {
         Blah
       C
       `;
-  assert(JSON.parse(g.pp()) == "A: A\nB: B\n  Blah\nC\n");
+  checkStr(g, "A: A\nB: B\n  Blah\nC\n");
 
   g = grm`A: ${"A"}
           B: ${"B"}
             Blah
           C
       `;
-  assert(JSON.parse(g.pp()) == "A: A\nB: B\n  Blah\nC\n");
+  checkStr(g, "A: A\nB: B\n  Blah\nC\n");
 
   g = grm`
           A: ${"A"}
@@ -23,7 +39,7 @@ function testDedent() {
             Blah
           C
       `;
-  assert(JSON.parse(g.pp()) == "\nA: A\nB: B\n  Blah\nC\n");
+  checkStr(g, "\nA: A\nB: B\n  Blah\nC\n");
 
   g = grm`
           A: ${"A"}
@@ -32,7 +48,7 @@ function testDedent() {
           C
       
           `;
-  assert(JSON.parse(g.pp()) == "\nA: A\nB: B\n  Blah\nC\n\n");
+  checkStr(g, "\nA: A\nB: B\n  Blah\nC\n\n");
 
   g = grm`
             A: ${"A"}
@@ -41,7 +57,7 @@ function testDedent() {
             C
 
           `;
-  assert(JSON.parse(g.pp()) == "\nA: A\nB: B\n  Blah\nC\n\n");
+  checkStr(g, "\nA: A\nB: B\n  Blah\nC\n\n");
 }
 
 function main() {
