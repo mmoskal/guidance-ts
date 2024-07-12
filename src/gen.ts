@@ -104,13 +104,6 @@ function concatStrings(acc: GrammarNode[]) {
 const quoteRegex =
   /\\(u\{[0-9A-Fa-f]+\}|u[0-9A-Fa-f]{4}|x[0-9A-Fa-f]{2}|\n|.)|./g;
 
-function removeQuotedNL(raw: string) {
-  return raw.replace(quoteRegex, (match, escapeSeq) => {
-    if (escapeSeq === "\n") return "";
-    return match;
-  });
-}
-
 function cookRawString(raw: string) {
   return raw.replace(quoteRegex, (match, escapeSeq) => {
     if (escapeSeq) {
@@ -155,7 +148,7 @@ export function grm(
 ): GrammarNode {
   const acc: GrammarNode[] = [];
 
-  const raw = Array.from(strings.raw); // .map(removeQuotedNL);
+  const raw = Array.from(strings.raw);
 
   let minIndent: number | undefined = undefined;
   let joined = raw.join("{}");
