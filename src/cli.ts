@@ -6,6 +6,8 @@ import {
   lexeme,
   oneOrMore,
   select,
+  str,
+  join,
 } from "./index";
 import { assert, panic } from "./util";
 
@@ -71,6 +73,21 @@ function testDedent() {
   checkStr(g, "&|\t\r\bQ\x33\u1234\u{1f600}");
 }
 
+function readme() {
+  let g = grm`\
+    Do you want a joke or a poem? A ${select("joke", "poem")}.
+    Okay, here is a one-liner: "${gen({ stop: '"' })}"
+  `;
+  g = join(
+    str("Do you want a joke or a poem? A "),
+    select("joke", "poem"),
+    '.\nOkay, here is a one-liner: "',
+    gen({ stop: '"' }),
+    str('"')
+  );
+  console.log(g.pp());
+}
+
 function main() {
   let g = grm`\n\&\\Name: "${gen("foo", { stop: '"' })}"\n`;
   g = g.join(select("foo", "bar", "baz"));
@@ -90,6 +107,8 @@ function main() {
   console.log(g.pp());
 
   testDedent();
+
+  readme();
 }
 
 main();
