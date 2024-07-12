@@ -19,9 +19,41 @@ export abstract class GrammarNode extends BaseNode {
 
   abstract serializeInner(s: Serializer): NodeJSON;
 
+  pp() {
+    const useCount = new Map();
+
+    {
+      const visited = new Set();
+      const visit = (n: GrammarNode) => {
+        const v = useCount.get(n) ?? 0;
+        useCount.set(n, v + 1);
+        if (visited.has(n)) return;
+        visited.add(n);
+        n.getChildren()?.forEach(visit);
+      };
+      visit(this);
+    }
+
+    {
+      const visited = new Set();
+      const visit = (n: GrammarNode) => {
+        if (visited.has(n)) return "R" + n.id;
+        visited.add(n);
+        const ch = n.getChildren()?.map(visit);
+        let res = useCount.get(n) > 1 ? `D${n.id}: ` : ``;
+        res += n.ppInner(ch);
+        if (ch) return `(${res})`;
+        else return res;
+      };
+      return visit(this);
+    }
+  }
+
   getChildren(): GrammarNode[] | undefined {
     return undefined;
   }
+
+  abstract ppInner(children?: string[]): string;
 
   static from(s: string | GrammarNode) {
     if (typeof s === "string") return new StringLiteral(s);
@@ -35,6 +67,14 @@ export class Gen extends GrammarNode {
 
   constructor(public regex: RegexNode, public stop?: RegexNode) {
     super();
+  }
+
+  override ppInner() {
+    return (
+      `gen(${this.captureName}, ` +
+      `regex: ${this.regex.pp()}, ` +
+      `stop: ${this.stop.pp()})`
+    );
   }
 
   override serializeInner(s: Serializer): NodeJSON {
@@ -58,6 +98,10 @@ export class Select extends GrammarNode {
     return this.among;
   }
 
+  override ppInner(children?: string[]) {
+    return children.join(" | ");
+  }
+
   override serializeInner(s: Serializer): NodeJSON {
     return {
       Select: {
@@ -70,6 +114,10 @@ export class Select extends GrammarNode {
 export class Join extends GrammarNode {
   constructor(public sequence: GrammarNode[]) {
     super();
+  }
+
+  override ppInner(children?: string[]) {
+    return children.join(" + ");
   }
 
   override getChildren(): GrammarNode[] | undefined {
@@ -90,6 +138,10 @@ export class StringLiteral extends GrammarNode {
     super();
   }
 
+  override ppInner() {
+    return JSON.stringify(this.literal);
+  }
+
   override serializeInner(s: Serializer): NodeJSON {
     return {
       String: {
@@ -104,6 +156,11 @@ export class Lexeme extends GrammarNode {
 
   constructor(public rx: RegexNode, public contextual?: boolean) {
     super();
+  }
+
+  override ppInner() {
+    const kw = this.contextual ? "keyword" : "lexeme";
+    return `${kw}(${this.rx.pp()})`;
   }
 
   override serializeInner(s: Serializer): NodeJSON {
@@ -178,17 +235,4 @@ export class Serializer {
   }
 }
 
-function ppGrammar(top: GrammarNode) {
-  const visited = new Set();
-  const useCount = new Map();
-
-  const visit = (n: GrammarNode) => {
-    const v = useCount.get(n) ?? 0;
-    useCount.set(n, v + 1);
-    if (visited.has(n)) return;
-    visited.add(n);
-    n.getChildren()?.forEach(visit);
-  };
-
-  visited.clear();
-}
+function ppGrammar(top: GrammarNode) {}
