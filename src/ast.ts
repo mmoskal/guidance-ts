@@ -1,17 +1,50 @@
-import { GrammarId, NodeJSON, NodeProps, RegexJSON, RegexSpec } from "./api";
+import {
+  GrammarId,
+  GrammarWithLexer,
+  NodeJSON,
+  NodeProps,
+  RegexJSON,
+  RegexSpec,
+} from "./api";
+import { assert, panic } from "./util";
 
 export type RegexDef = string | RegexNode;
 
+const REGEX_PLACEHOLDER = -1000;
 export class RegexNode {
   _brandRegex: unknown;
 
   _cachedId?: GrammarId;
   _cacheWaveId?: number;
 
-  constructor() {}
+  private constructor(
+    private simple: RegexJSON,
+    private children?: RegexNode[]
+  ) {}
+
   serializeInner(s: Serializer): RegexJSON {
-    // TODO
-    return { NoMatch: {} };
+    const simple = JSON.parse(JSON.stringify(this.simple));
+    const key = Object.keys(simple)[0];
+    let arg = Object.values(simple)[0];
+
+    if (this.children) {
+      const mapped = this.children.map(s.regex);
+      if (Array.isArray(arg)) {
+        arg = mapped.concat(arg);
+      } else if (arg === REGEX_PLACEHOLDER) {
+        assert(mapped.length == 1);
+        arg = mapped[0];
+      } else {
+        panic();
+      }
+      simple[key] = arg;
+    }
+
+    return simple;
+  }
+
+  static literal(s: string) {
+    return new RegexNode({ Literal: s });
   }
 }
 
@@ -20,10 +53,18 @@ export abstract class GrammarNode {
   _cacheWaveId?: number;
 
   max_tokens?: number;
-  name?: string;
   capture_name?: string;
 
   abstract serializeInner(s: Serializer): NodeJSON;
+
+  serialize() {
+    const s = new Serializer();
+  }
+
+  static from(s: string | GrammarNode) {
+    if (typeof s === "string") return new StringLiteral(s);
+    return s;
+  }
 }
 
 export class Gen extends GrammarNode {
@@ -137,6 +178,18 @@ export class Serializer {
     this.regex = this.regex.bind(this);
   }
 
+  static grammar(top: GrammarNode): GrammarWithLexer {
+    // TODO Grammar node
+    const s = new Serializer();
+    const id = s.serialize(top);
+    assert(id == 0);
+    return {
+      nodes: s.grmNodes,
+      greedy_lexer: false,
+      rx_nodes: s.rxNodes,
+    };
+  }
+
   serialize(n: GrammarNode): GrammarId {
     if (n._cacheWaveId == this.waveId) return n._cachedId as number;
     n._cacheWaveId = this.waveId;
@@ -145,12 +198,12 @@ export class Serializer {
     const props = nodeProps(serial);
     if (n.max_tokens !== undefined) props.max_tokens = n.max_tokens;
     if (n.capture_name !== undefined) props.capture_name = n.capture_name;
-    if (n.name !== undefined) props.name = n.name;
     this.grmNodes.push(serial);
     return n._cachedId;
   }
 
   regex(n?: RegexDef): RegexSpec {
+    // TODO order is backwards
     if (n === undefined) return "";
     if (typeof n == "string") return n;
     if (n._cacheWaveId == this.waveId) return n._cachedId as number;

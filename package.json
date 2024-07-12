@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
+  "scripts": {
+    "go": "./go.sh"
+  },
   "dependencies": {
     "esbuild": "^0.23.0",
     "typescript": "^5.5.3"
