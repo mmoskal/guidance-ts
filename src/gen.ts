@@ -8,31 +8,51 @@ import {
   StringLiteral,
 } from "./grammarnode";
 import { RegexNode, BaseNode } from "./regexnode";
-
-export type RegexDef = RegExp | RegexNode;
+import { assert } from "./util";
 
 export { GrammarNode, RegexNode, BaseNode };
 export type { Grammar };
 
+export type RegexDef = RegExp | RegexNode;
+
 export interface GenOptions {
+  name?: string;
   regex?: RegexDef;
-  stop?: string;
-  stopRegex?: RegexDef;
+  stop?: RegexDef | string;
   maxTokens?: number;
   temperature?: number;
 }
 
-export function gen(name: string, options: GenOptions = {}): Gen {
-  const regex = options.regex ?? /.*/;
+function isPlainObject(obj: any): boolean {
+  return obj && Object.getPrototypeOf(obj) === Object.prototype;
+}
+
+function isRegexDef(obj: any): boolean {
+  return obj instanceof RegExp || obj instanceof RegexNode;
+}
+
+export function gen(options?: GenOptions): Gen;
+export function gen(name: string, options?: GenOptions): Gen;
+export function gen(name: string, regex: RegexDef, options?: GenOptions): Gen;
+export function gen(regex: RegexDef, options?: GenOptions): Gen;
+export function gen(...args: any[]): Gen {
+  let name: string | undefined = undefined;
+  let regex: RegexDef | undefined = undefined;
+  let options: GenOptions = {};
+
+  if (typeof args[0] == "string") name = args.shift();
+  if (isRegexDef(args[0])) regex = args.shift();
+  if (isPlainObject(args[0])) options = args.shift();
+  assert(args.length == 0);
+
   const stop =
-    options.stopRegex ??
-    (options.stop === undefined
-      ? RegexNode.noMatch()
-      : RegexNode.literal(options.stop));
-  const g = new Gen(RegexNode.from(regex), RegexNode.from(stop));
+    typeof options.stop == "string"
+      ? RegexNode.literal(options.stop)
+      : RegexNode.from(options.stop);
+  const g = new Gen(RegexNode.from(regex ?? options.regex ?? /.*/), stop);
   if (options.maxTokens !== undefined) g.maxTokens = options.maxTokens;
   if (options.temperature !== undefined) g.temperature = options.temperature;
-  g.captureName = name;
+  g.captureName = name ?? options.name;
   return g;
 }
 
@@ -81,14 +101,95 @@ function concatStrings(acc: GrammarNode[]) {
   }
 }
 
+const quoteRegex =
+  /\\(u\{[0-9A-Fa-f]+\}|u[0-9A-Fa-f]{4}|x[0-9A-Fa-f]{2}|\n|.)|./g;
+
+function removeQuotedNL(raw: string) {
+  return raw.replace(quoteRegex, (match, escapeSeq) => {
+    if (escapeSeq === "\n") return "";
+    return match;
+  });
+}
+
+function cookRawString(raw: string) {
+  return raw.replace(quoteRegex, (match, escapeSeq) => {
+    if (escapeSeq) {
+      switch (escapeSeq[0]) {
+        case "u":
+          if (escapeSeq[1] === "{") {
+            return String.fromCodePoint(parseInt(escapeSeq.slice(2, -1), 16));
+          } else {
+            return String.fromCharCode(parseInt(escapeSeq.slice(1), 16));
+          }
+        case "x":
+          return String.fromCharCode(parseInt(escapeSeq.slice(1), 16));
+        case "t":
+          return "\t";
+        case "n":
+          return "\n";
+        case "v":
+          return "\v";
+        case "b":
+          return "\b";
+        case "r":
+          return "\r";
+        case "f":
+          return "\f";
+        case "0":
+          return "\0";
+        case "\n":
+          return "";
+        default:
+          assert(escapeSeq.length == 1);
+          return escapeSeq;
+      }
+    } else {
+      return match;
+    }
+  });
+}
+
 export function grm(
   strings: TemplateStringsArray,
   ...values: Grammar[]
 ): GrammarNode {
   const acc: GrammarNode[] = [];
 
-  for (let i = 0; i < strings.length; i++) {
-    if (strings[i] !== "") acc.push(str(strings[i]));
+  const raw = Array.from(strings.raw); // .map(removeQuotedNL);
+
+  let minIndent: number | undefined = undefined;
+  let joined = raw.join("{}");
+  // ignore empty lines
+  joined = joined.replace(/(\n *)+(\n|$)/g, "\n");
+  // remove final NL
+  if (joined.endsWith("\n")) joined = joined.slice(0, -1);
+  joined.replace(/\n */g, (m) => {
+    if (minIndent === undefined) minIndent = m.length - 1;
+    else minIndent = Math.min(m.length - 1, minIndent);
+    return "";
+  });
+
+  // we do not want the trailing spaces after final newline
+  const last = raw[raw.length - 1];
+  // note that $ might match \n at the end without the endsWith()
+  if (last.endsWith(" ")) raw[raw.length - 1] = last.replace(/\n *$/, "\n");
+
+  if (minIndent) {
+    const regex = new RegExp(`\n {1,${minIndent}}`, "g");
+    for (let i = 0; i < raw.length; ++i) raw[i] = raw[i].replace(regex, "\n");
+  }
+
+  // console.log({
+  //   minIndent,
+  //   cooked: strings,
+  //   raw0: strings.raw,
+  //   raw1: raw,
+  //   cooked1: raw.map(cookRawString),
+  // });
+
+  for (let i = 0; i < raw.length; i++) {
+    const s = cookRawString(raw[i]);
+    if (s !== "") acc.push(str(s));
     if (i < values.length) {
       if (values[i] != null) acc.push(GrammarNode.from(values[i]));
     }

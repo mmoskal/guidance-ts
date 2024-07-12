@@ -58,7 +58,8 @@ export class RegexNode extends BaseNode {
     return new RegexNode({ NoMatch: {} });
   }
 
-  static from(s: RegexNode | RegExp) {
+  static from(s: undefined | RegexNode | RegExp) {
+    if (s === undefined) return RegexNode.noMatch();
     if (s instanceof RegexNode) return s;
     return RegexNode.regex(s);
   }
