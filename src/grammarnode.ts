@@ -1,4 +1,3 @@
-import { Extension } from "typescript";
 import {
   GrammarId,
   GrammarWithLexer,
@@ -10,6 +9,8 @@ import {
 } from "./api";
 import { BaseNode, RegexNode } from "./regexnode";
 import { assert } from "./util";
+
+export type Grammar = GrammarNode | string;
 
 export abstract class GrammarNode extends BaseNode {
   maxTokens?: number;
@@ -23,6 +24,10 @@ export abstract class GrammarNode extends BaseNode {
 
   serialize(): TopLevelGrammar {
     return new NestedGrammar(this).serialize();
+  }
+
+  join(other: Grammar): Join {
+    return new Join([this, GrammarNode.from(other)]);
   }
 
   pp() {
@@ -43,10 +48,10 @@ export abstract class GrammarNode extends BaseNode {
     {
       const visited = new Set();
       const visit = (n: GrammarNode) => {
-        if (visited.has(n)) return "R" + n.id;
+        if (visited.has(n)) return "#" + n.id;
         visited.add(n);
         const ch = n.getChildren()?.map(visit);
-        let res = useCount.get(n) > 1 ? `D${n.id}: ` : ``;
+        let res = useCount.get(n) > 1 ? `#${n.id}: ` : ``;
         res += n.ppInner(ch);
         if (ch) return `(${res})`;
         else return res;
@@ -61,7 +66,7 @@ export abstract class GrammarNode extends BaseNode {
 
   abstract ppInner(children?: string[]): string;
 
-  static from(s: string | GrammarNode) {
+  static from(s: Grammar) {
     if (typeof s === "string") return new StringLiteral(s);
     return s;
   }

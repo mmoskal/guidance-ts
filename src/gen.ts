@@ -1,14 +1,18 @@
 import {
   Gen,
   GrammarNode,
+  Grammar,
   Join,
   Lexeme,
   Select,
   StringLiteral,
 } from "./grammarnode";
-import { RegexNode } from "./regexnode";
+import { RegexNode, BaseNode } from "./regexnode";
 
 export type RegexDef = RegExp | RegexNode;
+
+export { GrammarNode, RegexNode, BaseNode };
+export type { Grammar };
 
 export interface GenOptions {
   regex?: RegexDef;
@@ -17,8 +21,6 @@ export interface GenOptions {
   maxTokens?: number;
   temperature?: number;
 }
-
-export type Grammar = GrammarNode | string;
 
 export function gen(name: string, options: GenOptions = {}): Gen {
   const regex = options.regex ?? /.*/;
@@ -34,11 +36,11 @@ export function gen(name: string, options: GenOptions = {}): Gen {
   return g;
 }
 
-export function select(values: Grammar[]) {
+export function select(...values: Grammar[]) {
   return new Select(values.map(GrammarNode.from));
 }
 
-export function join(values: Grammar[]) {
+export function join(...values: Grammar[]) {
   return new Join(values.map(GrammarNode.from));
 }
 
@@ -52,6 +54,19 @@ export function keyword(s: string) {
 
 export function str(s: string) {
   return new StringLiteral(s);
+}
+
+export function oneOrMore(g: Grammar) {
+  const inner = GrammarNode.from(g);
+  const n = new Select([inner]);
+  n.among.push(join(n, inner));
+  return n;
+}
+
+export function zeroOrMore(g: Grammar) {
+  const n = new Select([str("")]);
+  n.among.push(join(n, g));
+  return n;
 }
 
 function concatStrings(acc: GrammarNode[]) {
