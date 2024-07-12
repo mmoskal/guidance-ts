@@ -58,6 +58,17 @@ function testDedent() {
 
           `;
   checkStr(g, "\nA: A\nB: B\n  Blah\nC\n\n");
+
+  g = grm`
+            A: ${"A"}\n B: ${"B"}\n
+              Blah\n
+            C
+
+          `;
+  checkStr(g, "\nA: A\n B: B\n\n  Blah\n\nC\n\n");
+
+  g = grm`\&\|\t\r\b\Q\x33\u1234\u{1f600}`;
+  checkStr(g, "&|\t\r\bQ\x33\u1234\u{1f600}");
 }
 
 function main() {
