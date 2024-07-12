@@ -61,6 +61,15 @@ export abstract class GrammarNode extends BaseNode {
   }
 }
 
+function ppProps(n: GrammarNode & { temperature?: number }) {
+  let res = "";
+  if (n.maxTokens !== undefined) res += ` maxTokens:${n.maxTokens}`;
+  if (n.temperature !== undefined) res += ` temp:${n.temperature}`;
+  if (n.captureName !== undefined)
+    res += ` name:${JSON.stringify(n.captureName)}`;
+  return res;
+}
+
 export class Gen extends GrammarNode {
   public temperature?: number;
   public lazy?: boolean;
@@ -71,9 +80,11 @@ export class Gen extends GrammarNode {
 
   override ppInner() {
     return (
-      `gen(${this.captureName}, ` +
-      `regex: ${this.regex.pp()}, ` +
-      `stop: ${this.stop.pp()})`
+      `gen(` +
+      `regex:${this.regex.pp()} ` +
+      `stop:${this.stop.pp()}` +
+      ppProps(this) +
+      `)`
     );
   }
 
@@ -99,7 +110,7 @@ export class Select extends GrammarNode {
   }
 
   override ppInner(children?: string[]) {
-    return children.join(" | ");
+    return children.join(" | ") + ppProps(this);
   }
 
   override serializeInner(s: Serializer): NodeJSON {
@@ -117,7 +128,7 @@ export class Join extends GrammarNode {
   }
 
   override ppInner(children?: string[]) {
-    return children.join(" + ");
+    return children.join(" + ") + ppProps(this);
   }
 
   override getChildren(): GrammarNode[] | undefined {
@@ -139,7 +150,7 @@ export class StringLiteral extends GrammarNode {
   }
 
   override ppInner() {
-    return JSON.stringify(this.literal);
+    return JSON.stringify(this.literal) + ppProps(this);
   }
 
   override serializeInner(s: Serializer): NodeJSON {
@@ -160,7 +171,7 @@ export class Lexeme extends GrammarNode {
 
   override ppInner() {
     const kw = this.contextual ? "keyword" : "lexeme";
-    return `${kw}(${this.rx.pp()})`;
+    return `${kw}(${this.rx.pp()}${ppProps(this)})`;
   }
 
   override serializeInner(s: Serializer): NodeJSON {
