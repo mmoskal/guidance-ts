@@ -1,4 +1,4 @@
-import { Serializer } from "./ast";
+import { Serializer } from "./grammarnode";
 import { gen, grm } from "./gen";
 
 function main() {

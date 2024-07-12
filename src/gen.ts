@@ -3,10 +3,10 @@ import {
   GrammarNode,
   Join,
   Lexeme,
-  RegexNode,
   Select,
   StringLiteral,
-} from "./ast";
+} from "./grammarnode";
+import { RegexNode } from "./regexnode";
 
 export type RegexDef = RegExp | RegexNode;
 
