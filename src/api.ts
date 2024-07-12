@@ -129,7 +129,9 @@ export type RegexJSON =
   /// Can lead to invalid utf8 if the set is not a subset of 0..127
   | { ByteSet: number[] };
 
-export type RegexSpec = string | RegexId;
+// The actual wire format allows for direct strings, but we always use nodes
+// export type RegexSpec = string | RegexId;
+export type RegexSpec = RegexId;
 
 export type GrammarId = number;
 export type NodeId = number;

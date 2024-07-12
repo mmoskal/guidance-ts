@@ -8,19 +8,24 @@ import {
 } from "./api";
 import { assert, panic } from "./util";
 
-export type RegexDef = string | RegexNode;
+export class BaseNode {
+  static nextNodeId = 1;
+
+  id: number;
+
+  protected constructor() {
+    this.id = BaseNode.nextNodeId++;
+  }
+}
 
 const REGEX_PLACEHOLDER = -1000;
-export class RegexNode {
-  _brandRegex: unknown;
-
-  _cachedId?: GrammarId;
-  _cacheWaveId?: number;
-
+export class RegexNode extends BaseNode {
   private constructor(
     private simple: RegexJSON,
     private children?: RegexNode[]
-  ) {}
+  ) {
+    super();
+  }
 
   serializeInner(s: Serializer): RegexJSON {
     const simple = JSON.parse(JSON.stringify(this.simple));
@@ -46,19 +51,57 @@ export class RegexNode {
   static literal(s: string) {
     return new RegexNode({ Literal: s });
   }
+
+  static regex(s: string | RegExp) {
+    if (typeof s != "string") s = s.source;
+    return new RegexNode({ Regex: s });
+  }
+
+  static noMatch() {
+    return new RegexNode({ NoMatch: {} });
+  }
+
+  static from(s: RegexNode | RegExp) {
+    if (s instanceof RegexNode) return s;
+    return RegexNode.regex(s);
+  }
+
+  pp() {
+    let res = "";
+
+    const visit = (n: RegexNode) => {
+      if (res.length > 1024) return;
+      if ("Literal" in n.simple) {
+        const lit = n.simple["Literal"];
+        res += JSON.stringify(lit);
+      } else if ("Regex" in n.simple) {
+        const rx = n.simple["Regex"];
+        res += "" + new RegExp(rx);
+      } else {
+        res += JSON.stringify(this.simple);
+      }
+    };
+
+    visit(this);
+
+    if (res.length > 1024) res += "...";
+
+    return res;
+  }
 }
 
-export abstract class GrammarNode {
-  _cachedId?: GrammarId;
-  _cacheWaveId?: number;
+export abstract class GrammarNode extends BaseNode {
+  maxTokens?: number;
+  captureName?: string;
 
-  max_tokens?: number;
-  capture_name?: string;
+  protected constructor() {
+    super();
+  }
 
   abstract serializeInner(s: Serializer): NodeJSON;
 
-  serialize() {
-    const s = new Serializer();
+  getChildren(): GrammarNode[] | undefined {
+    return undefined;
   }
 
   static from(s: string | GrammarNode) {
@@ -71,7 +114,7 @@ export class Gen extends GrammarNode {
   public temperature?: number;
   public lazy?: boolean;
 
-  constructor(public regex: RegexDef, public stop?: RegexDef) {
+  constructor(public regex: RegexNode, public stop?: RegexNode) {
     super();
   }
 
@@ -92,6 +135,10 @@ export class Select extends GrammarNode {
     super();
   }
 
+  override getChildren(): GrammarNode[] | undefined {
+    return this.among;
+  }
+
   override serializeInner(s: Serializer): NodeJSON {
     return {
       Select: {
@@ -104,6 +151,10 @@ export class Select extends GrammarNode {
 export class Join extends GrammarNode {
   constructor(public sequence: GrammarNode[]) {
     super();
+  }
+
+  override getChildren(): GrammarNode[] | undefined {
+    return this.sequence;
   }
 
   override serializeInner(s: Serializer): NodeJSON {
@@ -132,7 +183,7 @@ export class StringLiteral extends GrammarNode {
 export class Lexeme extends GrammarNode {
   public temperature?: number;
 
-  constructor(public rx: RegexDef, public contextual?: boolean) {
+  constructor(public rx: RegexNode, public contextual?: boolean) {
     super();
   }
 
@@ -148,32 +199,16 @@ export class Lexeme extends GrammarNode {
 }
 
 function nodeProps(node: NodeJSON): NodeProps {
-  if ("Gen" in node) {
-    return node["Gen"];
-  } else if ("String" in node) {
-    return node["String"];
-  } else if ("Lexeme" in node) {
-    return node["Lexeme"];
-  } else if ("GenGrammar" in node) {
-    return node["GenGrammar"];
-  } else if ("Select" in node) {
-    return node["Select"];
-  } else if ("Join" in node) {
-    return node["Join"];
-  } else {
-    throw new Error("unreachable");
-  }
+  return Object.values(node)[0];
 }
 
 export class Serializer {
-  private static nextWaveId = 1;
-
-  private waveId: number;
+  private cache: Map<BaseNode, number> = new Map();
   private grmNodes: NodeJSON[] = [];
   private rxNodes: RegexJSON[] = [];
+  private rxHashCons: Map<string, number> = new Map();
 
   constructor() {
-    this.waveId = Serializer.nextWaveId++;
     this.serialize = this.serialize.bind(this);
     this.regex = this.regex.bind(this);
   }
@@ -191,26 +226,51 @@ export class Serializer {
   }
 
   serialize(n: GrammarNode): GrammarId {
-    if (n._cacheWaveId == this.waveId) return n._cachedId as number;
-    n._cacheWaveId = this.waveId;
-    n._cachedId = this.grmNodes.length;
+    let sid = this.cache.get(n);
+    if (sid !== undefined) return sid;
+    sid = this.grmNodes.length;
+    this.grmNodes.push(null);
+    this.cache.set(n, sid);
     const serial = n.serializeInner(this);
     const props = nodeProps(serial);
-    if (n.max_tokens !== undefined) props.max_tokens = n.max_tokens;
-    if (n.capture_name !== undefined) props.capture_name = n.capture_name;
-    this.grmNodes.push(serial);
-    return n._cachedId;
+    if (n.maxTokens !== undefined) props.max_tokens = n.maxTokens;
+    if (n.captureName !== undefined) props.capture_name = n.captureName;
+    this.grmNodes[sid] = serial;
+    return sid;
   }
 
-  regex(n?: RegexDef): RegexSpec {
-    // TODO order is backwards
-    if (n === undefined) return "";
-    if (typeof n == "string") return n;
-    if (n._cacheWaveId == this.waveId) return n._cachedId as number;
-    n._cacheWaveId = this.waveId;
-    n._cachedId = this.rxNodes.length;
+  regex(n?: RegexNode): RegexSpec {
+    if (n === undefined) n = RegexNode.noMatch();
+    let sid = this.cache.get(n);
+    if (sid === null) throw new Error("circular regex");
+    this.cache.set(n, null);
     const serial = n.serializeInner(this);
-    this.rxNodes.push(serial);
-    return n._cachedId;
+    const key = JSON.stringify(serial);
+    const cached = this.rxHashCons.get(key);
+    if (cached !== undefined) {
+      sid = cached;
+    } else {
+      sid = this.rxNodes.length;
+      this.rxNodes.push(serial);
+      this.rxHashCons.set(key, sid);
+    }
+    this.cache.set(n, sid);
+    return sid;
   }
+}
+
+function ppGrammar(top: GrammarNode) {
+  const visited = new Set();
+  const useCount = new Map();
+
+  const visit = (n: GrammarNode) => {
+    const v = useCount.get(n) ?? 0;
+    useCount.set(n, v + 1);
+    if (visited.has(n)) return;
+    visited.add(n);
+    n.getChildren()?.forEach(visit);
+  };
+
+  visited.clear()
+  
 }

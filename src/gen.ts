@@ -2,11 +2,13 @@ import {
   Gen,
   GrammarNode,
   Join,
-  RegexDef,
+  Lexeme,
   RegexNode,
   Select,
   StringLiteral,
 } from "./ast";
+
+export type RegexDef = RegExp | RegexNode;
 
 export interface GenOptions {
   regex?: RegexDef;
@@ -19,15 +21,16 @@ export interface GenOptions {
 export type Grammar = GrammarNode | string;
 
 export function gen(name: string, options: GenOptions = {}): Gen {
-  const regex = options.regex ?? ".*";
+  const regex = options.regex ?? /.*/;
   const stop =
-    options.stopRegex ?? options.stop === undefined
-      ? ""
-      : RegexNode.literal(options.stop);
-  const g = new Gen(regex, stop);
-  if (options.maxTokens !== undefined) g.max_tokens = options.maxTokens;
+    options.stopRegex ??
+    (options.stop === undefined
+      ? RegexNode.noMatch()
+      : RegexNode.literal(options.stop));
+  const g = new Gen(RegexNode.from(regex), RegexNode.from(stop));
+  if (options.maxTokens !== undefined) g.maxTokens = options.maxTokens;
   if (options.temperature !== undefined) g.temperature = options.temperature;
-  g.capture_name = name;
+  g.captureName = name;
   return g;
 }
 
@@ -37,6 +40,14 @@ export function select(values: Grammar[]) {
 
 export function join(values: Grammar[]) {
   return new Join(values.map(GrammarNode.from));
+}
+
+export function lexeme(rx: RegexDef) {
+  return new Lexeme(RegexNode.from(rx));
+}
+
+export function keyword(s: string) {
+  return new Lexeme(RegexNode.literal(s), true);
 }
 
 export function str(s: string) {
