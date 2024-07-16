@@ -135,3 +135,80 @@ export type RegexSpec = RegexId;
 export type GrammarId = number;
 export type NodeId = number;
 export type RegexId = number;
+
+// Output of llguidance parser
+
+export interface BytesOutput {
+  str: string;
+  hex: string;
+}
+
+export interface OutCapture extends BytesOutput {
+  object: "capture";
+  name: string;
+  log_prob: number;
+}
+
+export interface OutFinalText extends BytesOutput {
+  object: "final_text";
+}
+
+export interface OutText extends BytesOutput {
+  object: "text";
+  log_prob: number;
+  num_tokens: number;
+  is_generated: boolean;
+  stats: ParserStats;
+}
+
+export type ParserOutput = OutCapture | OutFinalText | OutText;
+
+export interface ParserStats {
+  runtime_us: number;
+  rows: number;
+  definitive_bytes: number;
+  lexer_ops: number;
+  all_items: number;
+  hidden_bytes: number;
+}
+
+// AICI stuff:
+
+export interface RunUsageResponse {
+  sampled_tokens: number;
+  ff_tokens: number;
+  cost: number;
+}
+
+export interface InitialRunResponse {
+  id: string;
+  object: "initial-run";
+  created: number;
+  model: string;
+}
+
+export interface RunResponse {
+  object: "run";
+  forks: RunForkResponse[];
+  usage: RunUsageResponse;
+}
+
+export interface RunForkResponse {
+  index: number;
+  finish_reason?: string;
+  text: string;
+  error: string;
+  logs: string;
+  storage: any[];
+  micros: number;
+}
+
+export interface RunRequest {
+  controller: string;
+  controller_arg: { grammar: TopLevelGrammar };
+  prompt?: string; // Optional with a default value
+  temperature?: number; // Optional with a default value of 0.0
+  top_p?: number; // Optional with a default value of 1.0
+  top_k?: number; // Optional with a default value of -1
+  max_tokens?: number; // Optional with a default value based on context size
+}

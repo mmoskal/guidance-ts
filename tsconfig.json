@@ -26,7 +26,6 @@
         "resolveJsonModule": true,
         "emitDeclarationOnly": true,
         "pretty": true,
-        "newLine": "LF",
-        "types": []
+        "newLine": "LF"
     }
 }
