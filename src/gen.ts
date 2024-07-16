@@ -31,11 +31,15 @@ function isRegexDef(obj: any): boolean {
   return obj instanceof RegExp || obj instanceof RegexNode;
 }
 
-export function gen(options?: GenOptions): Gen;
-export function gen(name: string, options?: GenOptions): Gen;
-export function gen(name: string, regex: RegexDef, options?: GenOptions): Gen;
-export function gen(regex: RegexDef, options?: GenOptions): Gen;
-export function gen(...args: any[]): Gen {
+export function gen(options?: GenOptions): GrammarNode;
+export function gen(name: string, options?: GenOptions): GrammarNode;
+export function gen(
+  name: string,
+  regex: RegexDef,
+  options?: GenOptions
+): GrammarNode;
+export function gen(regex: RegexDef, options?: GenOptions): GrammarNode;
+export function gen(...args: any[]): GrammarNode {
   let name: string | undefined = undefined;
   let regex: RegexDef | undefined = undefined;
   let options: GenOptions = {};
@@ -53,7 +57,15 @@ export function gen(...args: any[]): Gen {
   const g = new Gen(RegexNode.from(regex ?? options.regex ?? /.*/), stop);
   if (options.maxTokens !== undefined) g.maxTokens = options.maxTokens;
   if (options.temperature !== undefined) g.temperature = options.temperature;
-  g.captureName = name ?? options.name;
+  name ??= options.name;
+
+  if (name !== undefined) {
+    // TODO-SERVER: capture name on gen doesn't work
+    const r = new Join([g]);
+    r.captureName = name;
+    return r;
+  }
+
   return g;
 }
 

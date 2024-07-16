@@ -140,6 +140,9 @@ export class Client {
       }
       for (const line of f.logs.split("\n")) {
         if (line.startsWith("JSON-OUT: ")) {
+          if (this.logLevel >= 6) {
+            console.log(line);
+          }
           this.handleParserOutput(JSON.parse(line.slice(10)));
         } else if (line.startsWith("Warning: ")) {
           if (this.logLevel >= 1) console.warn(line);

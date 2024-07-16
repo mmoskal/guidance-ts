@@ -110,7 +110,8 @@ export class Gen extends GrammarNode {
     return {
       Gen: {
         body_rx: s.regex(this.regex),
-        stop_rx: s.regex(this.stop),
+        // TODO-SERVER: passing noMatch doesn't work - need ""
+        stop_rx: this.stop ? s.regex(this.stop) : "",
         temperature: this.temperature,
         lazy: this.lazy,
       },
@@ -320,9 +321,6 @@ class Serializer {
 
   regex(top?: RegexNode): RegexSpec {
     if (top === undefined) top = RegexNode.noMatch();
-
-    // const rx = top.asRegexString();
-    // if (rx) return rx;
 
     const cache = this.rxCache;
 

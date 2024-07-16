@@ -129,8 +129,8 @@ export type RegexJSON =
   | { ByteSet: number[] };
 
 // The actual wire format allows for direct strings, but we always use nodes
-// export type RegexSpec = string | RegexId;
-export type RegexSpec = RegexId;
+// TODO-SERVER
+export type RegexSpec = string | RegexId;
 
 export type GrammarId = number;
 export type NodeId = number;
