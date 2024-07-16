@@ -113,9 +113,9 @@ export type RegexJSON =
   /// Repeat the regex at least min times, at most max times
   | { Repeat: [RegexId, number, number?] }
   /// Matches the empty string. Same as Concat([]).
-  | { EmptyString: {} }
+  // | "EmptyString"
   /// Matches nothing. Same as Or([]).
-  | { NoMatch: {} }
+  // | "NoMatch"
   /// Compile the regex using the regex_syntax crate
   | { Regex: string }
   /// Matches this string only

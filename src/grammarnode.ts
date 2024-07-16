@@ -93,13 +93,14 @@ export class Gen extends GrammarNode {
     super();
     Serializer.checkRegex(this.regex);
     Serializer.checkRegex(this.stop);
+    if (!stop) this.lazy = true;
   }
 
   override ppInner() {
     return (
       `gen(` +
       `regex:${this.regex.pp()} ` +
-      `stop:${this.stop.pp()}` +
+      (this.stop ? `stop:${this.stop.pp()}` : ``) +
       ppProps(this) +
       `)`
     );
@@ -319,6 +320,9 @@ class Serializer {
 
   regex(top?: RegexNode): RegexSpec {
     if (top === undefined) top = RegexNode.noMatch();
+
+    // const rx = top.asRegexString();
+    // if (rx) return rx;
 
     const cache = this.rxCache;
 

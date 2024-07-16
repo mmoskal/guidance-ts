@@ -55,13 +55,21 @@ export class RegexNode extends BaseNode {
   }
 
   static noMatch() {
-    return new RegexNode({ NoMatch: {} });
+    return new RegexNode({ Or: [] });
   }
 
   static from(s: undefined | RegexNode | RegExp) {
     if (s === undefined) return RegexNode.noMatch();
     if (s instanceof RegexNode) return s;
     return RegexNode.regex(s);
+  }
+
+  asRegexString() {
+    if ("Regex" in this.simple) {
+      return this.simple["Regex"];
+    } else {
+      return null;
+    }
   }
 
   pp() {

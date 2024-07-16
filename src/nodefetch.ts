@@ -23,7 +23,12 @@ export async function postAndRead(options: RequestOptions): Promise<{}> {
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    try {
+      const text = await response.text();
+      throw new Error(`HTTP error! status: ${response.status};\n${text}`);
+    } catch (e) {
+      throw new Error(`HTTP error! status: ${response.status}; ${e}`);
+    }
   }
 
   if (!lineCb) return await response.json();

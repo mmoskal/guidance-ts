@@ -40,14 +40,25 @@ export interface RequestOptions {
 }
 
 export class Connection {
-  constructor(private connectionString: string) {}
+  constructor(private connectionString: string) {
+    const [baseUrl, key] = parseBaseUrl(connectionString);
+    if (!(baseUrl.startsWith("http:") || baseUrl.startsWith("https://")))
+      throw new Error("Invalid URL: " + baseUrl);
+    if (!key) throw new Error("No key in connection string");
+  }
+
+  resolveUrl(url: string) {
+    const [baseUrl, _] = parseBaseUrl(this.connectionString);
+    if (url.startsWith("/")) {
+      return baseUrl + url.slice(1);
+    }
+    return url;
+  }
 
   async request(options: RequestOptions) {
     const [baseUrl, key] = parseBaseUrl(this.connectionString);
     options = { ...options };
-    if (options.url.startsWith("/")) {
-      options.url = baseUrl + options.url.slice(1);
-    }
+    options.url = this.resolveUrl(options.url);
     options.headers = {
       "api-key": key,
       ...(options.headers ?? {}),
@@ -71,9 +82,16 @@ export class Client {
   started = false;
   warnings: string[] = [];
 
+  onText = (s: OutText) => {};
+  onLog = (s: string) => {};
+  onWarning = (warn: string) => {};
+  onError = (err: string) => {
+    throw new Error("Server error: " + err);
+  };
+
   async start() {
     const arg: RunRequest = {
-      controller: "llguidnace",
+      controller: "llguidance",
       controller_arg: { grammar: this.grammar.serialize() },
       prompt: this.prompt,
       temperature: 0,
@@ -81,6 +99,10 @@ export class Client {
     };
     assert(!this.started);
     this.started = true;
+    if (this.logLevel >= 4) {
+      console.log(`POST ${this.connection.resolveUrl("/run")}`);
+      console.log(JSON.stringify(arg));
+    }
     return await this.connection.request({
       url: "/run",
       data: arg,
@@ -98,6 +120,7 @@ export class Client {
         break;
       case "text":
         this.text.push(output);
+        this.onText(output);
         break;
     }
   }
@@ -111,15 +134,20 @@ export class Client {
       this.lastUsage = output.usage;
       assert(output.forks.length == 1);
       const f = output.forks[0];
-      if (f.error) throw new Error("Server error: " + f.error);
+      if (f.error) {
+        this.onError(f.error);
+        return;
+      }
       for (const line of f.logs.split("\n")) {
         if (line.startsWith("JSON-OUT: ")) {
           this.handleParserOutput(JSON.parse(line.slice(10)));
         } else if (line.startsWith("Warning: ")) {
-          if (this.logLevel >= 1) console.log(line);
+          if (this.logLevel >= 1) console.warn(line);
           this.warnings.push(line);
+          this.onWarning(line);
         } else {
           if (this.logLevel >= 2) console.log(line);
+          this.onLog(line);
         }
       }
     }

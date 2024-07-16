@@ -4,12 +4,15 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "go": "./go.sh"
+    "go": "./go.sh",
+    "test": "uvu -r esbuild-register test"
   },
   "dependencies": {
     "@types/node": "^20.14.10",
     "esbuild": "^0.23.0",
+    "esbuild-register": "^3.5.0",
     "node-fetch": "^3.3.2",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "uvu": "^0.5.6"
   }
 }

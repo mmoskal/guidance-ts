@@ -45,10 +45,11 @@ export function gen(...args: any[]): Gen {
   if (isPlainObject(args[0])) options = args.shift();
   assert(args.length == 0);
 
-  const stop =
-    typeof options.stop == "string"
-      ? RegexNode.literal(options.stop)
-      : RegexNode.from(options.stop);
+  const stop = !options.stop
+    ? undefined
+    : typeof options.stop == "string"
+    ? RegexNode.literal(options.stop)
+    : RegexNode.from(options.stop);
   const g = new Gen(RegexNode.from(regex ?? options.regex ?? /.*/), stop);
   if (options.maxTokens !== undefined) g.maxTokens = options.maxTokens;
   if (options.temperature !== undefined) g.temperature = options.temperature;
