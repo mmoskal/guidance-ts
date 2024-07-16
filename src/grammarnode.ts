@@ -15,6 +15,7 @@ export type Grammar = GrammarNode | string;
 export abstract class GrammarNode extends BaseNode {
   maxTokens?: number;
   captureName?: string;
+  nullable = false;
 
   static LIST_APPEND_PREFIX = "__LIST_APPEND:";
 
@@ -66,8 +67,37 @@ export abstract class GrammarNode extends BaseNode {
     }
   }
 
-  getChildren(): GrammarNode[] | undefined {
+  getChildren(): readonly GrammarNode[] | undefined {
     return undefined;
+  }
+
+  leftNodes(): GrammarNode[] {
+    return Array.from(this.sideNodes(false));
+  }
+
+  rightNodes(): GrammarNode[] {
+    return Array.from(this.sideNodes(true));
+  }
+
+  private sideNodes(right: boolean): Set<GrammarNode> {
+    const r = new Set<GrammarNode>();
+    const todo: GrammarNode[] = [this];
+    while (todo.length > 0) {
+      const e = todo.pop();
+      if (r.has(e)) continue;
+      r.add(e);
+      if (e instanceof Select) {
+        todo.push(...e.getChildren());
+      } else if (e instanceof Join) {
+        const elts = e.sequence.slice();
+        if (right) elts.reverse();
+        for (const e of elts) {
+          todo.push(e);
+          if (!e.nullable) break;
+        }
+      }
+    }
+    return r;
   }
 
   abstract ppInner(children?: string[]): string;
@@ -90,30 +120,42 @@ function ppProps(n: GrammarNode & { temperature?: number }) {
 export class Gen extends GrammarNode {
   public temperature?: number;
   public lazy?: boolean;
+  public _inferStop?: string;
 
   constructor(public regex: RegexNode, public stop?: RegexNode) {
     super();
     Serializer.checkRegex(this.regex);
     Serializer.checkRegex(this.stop);
-    if (!stop) this.lazy = true;
+    // if (!stop) this.lazy = true;
   }
 
   override ppInner() {
+    const stop = this.stop
+      ? this.stop.pp()
+      : this._inferStop !== undefined
+      ? JSON.stringify(this._inferStop)
+      : "???";
     return (
       `gen(` +
       `regex:${this.regex.pp()} ` +
-      (this.stop ? `stop:${this.stop.pp()}` : ``) +
+      `stop:${stop}` +
       ppProps(this) +
       `)`
     );
   }
 
   override serializeInner(s: Serializer): NodeJSON {
+    const stop = this.stop
+      ? s.regex(this.stop)
+      : this._inferStop !== undefined
+      ? s.regex(RegexNode.literal(this._inferStop))
+      : undefined;
+    if (stop === undefined) throw new Error(`can't infer gen({ stop: ... })`);
     return {
       Gen: {
         body_rx: s.regex(this.regex),
         // TODO-SERVER: passing noMatch doesn't work - need ""
-        stop_rx: this.stop ? s.regex(this.stop) : "",
+        stop_rx: stop,
         temperature: this.temperature,
         lazy: this.lazy,
       },
@@ -124,9 +166,10 @@ export class Gen extends GrammarNode {
 export class Select extends GrammarNode {
   constructor(public among: GrammarNode[]) {
     super();
+    this.nullable = this.among.some((e) => e.nullable);
   }
 
-  override getChildren(): GrammarNode[] | undefined {
+  override getChildren() {
     return this.among;
   }
 
@@ -146,13 +189,51 @@ export class Select extends GrammarNode {
 export class Join extends GrammarNode {
   constructor(public sequence: GrammarNode[]) {
     super();
+    this.nullable = this.sequence.every((e) => e.nullable);
+    this.inferGenStop();
+  }
+
+  private inferGenStop() {
+    for (let i = 0; i < this.sequence.length - 1; ++i) {
+      const gens = this.sequence[i]
+        .rightNodes()
+        .filter((n) => n instanceof Gen && n.stop === undefined) as Gen[];
+      if (gens.length == 0) continue;
+      const infer: string[] = [];
+      for (const n of this.sequence[i + 1].leftNodes()) {
+        if (n instanceof Select || n instanceof Join) continue;
+        if (n instanceof StringLiteral) {
+          infer.push(n.literal);
+        } else {
+          throw new Error(
+            `can't infer gen({ stop: ... }): ${gens[0].pp()} followed by ${n.pp()}`
+          );
+        }
+      }
+      if (infer.length > 0) {
+        const inferStop = infer[0][0];
+        if (infer.some((x) => x[0] != inferStop))
+          throw new Error(
+            `can't infer gen({ stop: ...}): ${gens[0].pp()} is followed by ${infer}`
+          );
+        for (const g of gens) {
+          if (g._inferStop !== undefined && g._inferStop != inferStop)
+            throw new Error(
+              `can't infer gen({ stop: ...}): ${g.pp()} already has ${
+                g._inferStop
+              }; setting to ${inferStop}`
+            );
+          g._inferStop = inferStop;
+        }
+      }
+    }
   }
 
   override ppInner(children?: string[]) {
     return children.join(" + ") + ppProps(this);
   }
 
-  override getChildren(): GrammarNode[] | undefined {
+  override getChildren() {
     return this.sequence;
   }
 
@@ -168,6 +249,7 @@ export class Join extends GrammarNode {
 export class StringLiteral extends GrammarNode {
   constructor(public literal: string) {
     super();
+    this.nullable = this.literal == "";
   }
 
   override ppInner() {

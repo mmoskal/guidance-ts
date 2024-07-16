@@ -94,7 +94,9 @@ test("main", () => {
   g = g.join(select("foo", "bar", "baz"));
   g = g.join(oneOrMore(select("a", "b")));
   g = g.join(gen(/[abc]/));
+  g = g.join("x");
   g = g.join(gen("foo"));
+  g = g.join("x");
   g = g.join(
     gen({
       name: "xy",
