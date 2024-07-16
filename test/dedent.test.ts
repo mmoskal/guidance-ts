@@ -86,7 +86,13 @@ test("readme eq", () => {
   );
   let s0 = g0 + "";
   let s1 = g1 + "";
+
   assert.equal(s0, s1);
+
+  let g2 = grm`Do you want a joke or a poem? A ${select("joke", "poem")}.\n`;
+  g2 = g2.join(grm`Okay, here is a one-liner: "${gen({ stop: '"' })}"\n`);
+  let s2 = g2 + "";
+  assert.equal(s0, s2);
 });
 
 test("main", () => {

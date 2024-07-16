@@ -44,7 +44,7 @@ export interface RequestOptions {
   lineCb?: (s: string) => void;
 }
 
-export class Connection {
+export class Session {
   constructor(private connectionString: string) {
     const [baseUrl, key] = parseBaseUrl(connectionString);
     if (!(baseUrl.startsWith("http:") || baseUrl.startsWith("https://")))
@@ -72,9 +72,9 @@ export class Connection {
   }
 }
 
-export class Client {
+export class Generation {
   constructor(
-    private connection: Connection,
+    private session: Session,
     private prompt: string,
     private grammar: GrammarNode
   ) {}
@@ -126,10 +126,10 @@ export class Client {
     assert(!this.started);
     this.started = true;
     if (this.logLevel >= 4) {
-      console.log(`POST ${this.connection.resolveUrl("/run")}`);
+      console.log(`POST ${this.session.resolveUrl("/run")}`);
       console.log(JSON.stringify(arg));
     }
-    return await this.connection.request({
+    return await this.session.request({
       url: "/run",
       data: arg,
       lineCb: (s) => this.handleLine(s),

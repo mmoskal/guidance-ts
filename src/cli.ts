@@ -8,8 +8,9 @@ import {
   select,
   str,
   join,
-  client,
   capture,
+  Generation,
+  Session,
 } from "./index";
 
 async function main() {
@@ -19,16 +20,16 @@ async function main() {
   console.log(g.pp());
   console.log(JSON.stringify(g.serialize(), null, 1));
 
-  const conn = new client.Connection(process.env["AZURE_GUIDANCE_URL"]);
-  const c = new client.Client(conn, "7 * 8", g);
-  c.logLevel = 4;
-  await c.start();
-  console.log(c.captures);
-  console.log(c.listCaptures);
-  console.log({ t: c.getText() });
+  const session = new Session(process.env["AZURE_GUIDANCE_URL"]);
+  const seq = new Generation(session, "7 * 8", g);
+  seq.logLevel = 4;
+  await seq.start();
+  console.log(seq.captures);
+  console.log(seq.listCaptures);
+  console.log({ t: seq.getText() });
 }
 
-main()
+main();
 
 function characterMaker(
   id: string,
