@@ -21,6 +21,7 @@ export interface GenOptions {
   stop?: RegexDef | string;
   maxTokens?: number;
   temperature?: number;
+  listAppend?: boolean;
 }
 
 function isPlainObject(obj: any): boolean {
@@ -60,6 +61,7 @@ export function gen(...args: any[]): GrammarNode {
   name ??= options.name;
 
   if (name !== undefined) {
+    if (options.listAppend) name = Gen.LIST_APPEND_PREFIX + name;
     // TODO-SERVER: capture name on gen doesn't work
     const r = new Join([g]);
     r.captureName = name;
@@ -67,6 +69,12 @@ export function gen(...args: any[]): GrammarNode {
   }
 
   return g;
+}
+
+export function capture(name: string, grammar: Grammar) {
+  const r = new Join([GrammarNode.from(grammar)]);
+  r.captureName = name;
+  return r;
 }
 
 export function select(...values: Grammar[]) {

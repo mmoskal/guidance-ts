@@ -7,9 +7,14 @@ import {
   RunResponse,
   RunUsageResponse,
 } from "./api";
-import { GrammarNode } from "./grammarnode";
+import { Gen, GrammarNode } from "./grammarnode";
 import { postAndRead } from "./nodefetch";
-import { assert } from "./util";
+import {
+  assert,
+  uint8ArrayConcat,
+  uint8arrayFromHex,
+  utf8decode,
+} from "./util";
 
 function parseBaseUrl(baseUrl: string) {
   const urlPattern = /^(.*?)(#.*)?$/;
@@ -77,6 +82,7 @@ export class Client {
   lastUsage: RunUsageResponse;
   logLevel = 2;
   captures: Map<string, OutCapture> = new Map();
+  listCaptures: Map<string, OutCapture[]> = new Map();
   text: OutText[] = [];
   isDone = false;
   started = false;
@@ -88,6 +94,26 @@ export class Client {
   onError = (err: string) => {
     throw new Error("Server error: " + err);
   };
+
+  getTextBytes() {
+    return uint8ArrayConcat(this.text.map((t) => uint8arrayFromHex(t.hex)));
+  }
+
+  getText() {
+    return utf8decode(this.getTextBytes());
+  }
+
+  getCapture(name: string) {
+    return this.captures.get(name)?.str;
+  }
+
+  getCaptureBytes(name: string) {
+    return uint8arrayFromHex(this.captures.get(name)?.hex);
+  }
+
+  getListCapture(name: string) {
+    return this.listCaptures.get(name)?.map((v) => v.str);
+  }
 
   async start() {
     const arg: RunRequest = {
@@ -113,7 +139,13 @@ export class Client {
   private handleParserOutput(output: ParserOutput) {
     switch (output.object) {
       case "capture":
-        this.captures.set(output.name, output);
+        if (output.name.startsWith(Gen.LIST_APPEND_PREFIX)) {
+          const name = output.name.slice(Gen.LIST_APPEND_PREFIX.length);
+          if (!this.listCaptures.has(name)) this.listCaptures.set(name, []);
+          this.listCaptures.get(name).push(output);
+        } else {
+          this.captures.set(output.name, output);
+        }
         break;
       case "final_text":
         this.isDone = true;

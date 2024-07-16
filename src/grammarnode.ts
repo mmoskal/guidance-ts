@@ -16,6 +16,8 @@ export abstract class GrammarNode extends BaseNode {
   maxTokens?: number;
   captureName?: string;
 
+  static LIST_APPEND_PREFIX = "__LIST_APPEND:";
+
   protected constructor() {
     super();
   }
