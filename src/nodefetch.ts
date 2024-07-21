@@ -4,7 +4,11 @@ import { TextDecoder } from "util";
 import { RequestOptions } from "./client";
 
 export async function postAndRead(options: RequestOptions): Promise<{}> {
-  let { url, headers = {}, method, data, lineCb } = options;
+  let { url, headers = {}, method, data, lineCb, info } = options;
+
+  if (info === undefined) {
+    info = url;
+  }
 
   if (data && !method) {
     method = "POST";
@@ -23,12 +27,15 @@ export async function postAndRead(options: RequestOptions): Promise<{}> {
   });
 
   if (!response.ok) {
+    const pref = `Invalid HTTP response.\nRequest: ${method} ${info}\n` +
+      `Status: ${response.status} ${response.statusText}\n`;
+    let text = "";
     try {
-      const text = await response.text();
-      throw new Error(`HTTP error! status: ${response.status};\n${text}`);
+      text = "Body: " + await response.text();
     } catch (e) {
-      throw new Error(`HTTP error! status: ${response.status}; ${e}`);
+      text = e.toString();
     }
+    throw new Error(pref + text);
   }
 
   if (!lineCb) return await response.json();

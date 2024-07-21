@@ -16,28 +16,46 @@ import {
   utf8decode,
 } from "./util";
 
-function parseBaseUrl(baseUrl: string) {
-  const urlPattern = /^(.*?)(#.*)?$/;
-  const match = baseUrl.match(urlPattern);
-  let baseUrlWithoutFragment = match[1];
+function mkUrl(path: string, connString: string) {
+  const match = /^(.*?)(#.*)?$/.exec(connString);
+  let url = match[1] || "";
   const fragment = match[2] || "";
 
-  let key = "";
-  const keyPattern = /key=([^&]*)/;
-  const keyMatch = fragment.match(keyPattern);
-  if (keyMatch) {
-    key = keyMatch[1];
+  let headers: Record<string, string> = {};
+  let info = "no auth header";
+
+  if (fragment) {
+    const params = new URLSearchParams(fragment.slice(1)); // remove the leading '#'
+    if (params.has("key")) {
+      const key = params.get("key");
+      headers = { "api-key": key };
+      info = `api-key: ${key.slice(0, 2)}...${key.slice(-2)}`;
+    } else if (params.has("auth")) {
+      const key = params.get("auth");
+      headers = { authorization: "Bearer " + key };
+      info = `authorization: Bearer ${key.slice(0, 2)}...${key.slice(-2)}`;
+    }
   }
 
-  if (!baseUrlWithoutFragment.endsWith("/")) {
-    baseUrlWithoutFragment += "/";
+  if (url.endsWith("/")) {
+    url = url.slice(0, -1);
+  }
+  if (url.endsWith("/run")) {
+    url = url.slice(0, -4) + "/" + path;
+  } else if (url.endsWith("/guidance") && path === "run") {
+    // no change
+  } else {
+    url += "/" + path;
   }
 
-  return [baseUrlWithoutFragment, key];
+  info = `${url} (${info})`;
+
+  return { url, headers, info };
 }
 
 export interface RequestOptions {
   url: string;
+  info?: string; // included in
   headers?: Record<string, string>;
   method?: string;
   data?: any;
@@ -46,29 +64,27 @@ export interface RequestOptions {
 
 export class Session {
   constructor(private connectionString: string) {
-    const [baseUrl, key] = parseBaseUrl(connectionString);
-    if (!(baseUrl.startsWith("http:") || baseUrl.startsWith("https://")))
-      throw new Error("Invalid URL: " + baseUrl);
-    if (!key) throw new Error("No key in connection string");
+    const info = mkUrl("run", connectionString);
+    if (!(info.url.startsWith("http://") || info.url.startsWith("https://")))
+      throw new Error("Invalid URL: " + connectionString);
+    if (Object.keys(info.headers).length == 0)
+      throw new Error("No key in connection string");
   }
 
-  resolveUrl(url: string) {
-    const [baseUrl, _] = parseBaseUrl(this.connectionString);
-    if (url.startsWith("/")) {
-      return baseUrl + url.slice(1);
-    }
-    return url;
+  resolvePath(url: string) {
+    return mkUrl(url, this.connectionString);
   }
 
   async request(options: RequestOptions) {
-    const [baseUrl, key] = parseBaseUrl(this.connectionString);
-    options = { ...options };
-    options.url = this.resolveUrl(options.url);
-    options.headers = {
-      "api-key": key,
-      ...(options.headers ?? {}),
-    };
-    return await postAndRead(options);
+    const info = this.resolvePath(options.url);
+    return await postAndRead({
+      ...options,
+      url: info.url,
+      headers: {
+        ...info.headers,
+        ...(options.headers ?? {}),
+      },
+    });
   }
 }
 
@@ -80,7 +96,7 @@ export class Generation {
   ) {}
 
   lastUsage: RunUsageResponse;
-  logLevel = 2;
+  logLevel = 1;
   captures: Map<string, OutCapture> = new Map();
   listCaptures: Map<string, OutCapture[]> = new Map();
   text: OutText[] = [];
@@ -115,22 +131,22 @@ export class Generation {
     return this.listCaptures.get(name)?.map((v) => v.str);
   }
 
-  async start() {
+  async run() {
     const arg: RunRequest = {
       controller: "llguidance",
       controller_arg: { grammar: this.grammar.serialize() },
       prompt: this.prompt,
-      temperature: 0,
+      temperature: 0.0,
       max_tokens: 1000,
     };
     assert(!this.started);
     this.started = true;
     if (this.logLevel >= 4) {
-      console.log(`POST ${this.session.resolveUrl("/run")}`);
+      console.log(`POST ${this.session.resolvePath("run").info}`);
       console.log(JSON.stringify(arg));
     }
     return await this.session.request({
-      url: "/run",
+      url: "run",
       data: arg,
       lineCb: (s) => this.handleLine(s),
     });

@@ -13,20 +13,31 @@ import {
   Session,
 } from "./index";
 
+import "dotenv/config";
+import { uint8arrayFromHex } from "./util";
+import chalk from "chalk";
+
 async function main() {
   let g = grm`= ${gen("res", /[0-9]+/, { stop: "\n" })}\n`;
   g = characterMaker("elf", "A swift warrior", ["pencil", "fork"]);
 
-  console.log(g.pp());
-  console.log(JSON.stringify(g.serialize(), null, 1));
+  // console.log(g.pp());
+  // console.log(JSON.stringify(g.serialize(), null, 1));
 
   const session = new Session(process.env["AZURE_GUIDANCE_URL"]);
   const seq = new Generation(session, "7 * 8", g);
-  seq.logLevel = 4;
-  await seq.start();
-  console.log(seq.captures);
-  console.log(seq.listCaptures);
-  console.log({ t: seq.getText() });
+  // seq.logLevel = 4;
+  seq.onText = (t) => {
+    if (t.is_generated && !t.str.includes("\uFFFD")) {
+      process.stdout.write(chalk.green(t.str));
+    } else {
+      process.stdout.write(uint8arrayFromHex(t.hex));
+    }
+  };
+  await seq.run();
+  // console.log(seq.captures);
+  // console.log(seq.listCaptures);
+  // console.log({ t: seq.getText() });
 }
 
 main();
