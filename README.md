@@ -50,6 +50,10 @@ The `AZURE_GUIDANCE_URL` should contain a string of the form
 `https://somewhere.com/deployment-name/v1#key=secret`.
 The library will hit `https://somewhere.com/deployment-name/v1/run`
 with `API-Key` header set to `secret`.
+If you set it to `https://somewhere.com/guidance#auth=secret`
+it will set `Authorization` header to `Bearer secret`
+and hit `https://somewhere.com/guidance`.
+
 
 Then, create a `Generation` for the grammar:
 
