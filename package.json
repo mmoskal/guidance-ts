@@ -1,10 +1,13 @@
 {
   "name": "guidance-ts",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/src/index.d.ts",
+  "type": "module",
   "license": "MIT",
   "scripts": {
     "go": "./go.sh",
+    "build": "tsc -p . && esbuild src/index.ts --bundle --platform=node --format=esm --sourcemap --outfile=dist/index.js",
     "test": "uvu -r esbuild-register test"
   },
   "dependencies": {

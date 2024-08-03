@@ -7,6 +7,7 @@
             "ES2022",
             "dom"
         ],
+        "outDir": "dist",
         "skipLibCheck": true,
         "strict": false,
         "strictNullChecks": false,

@@ -16,7 +16,7 @@ export interface GrammarWithLexer {
   /// When enabled, the grammar can use `Lexeme` but not `Gen`.
   /// When disabled, the grammar can use `Gen` but not `Lexeme`.
   /// `String` is allowed in either case as a shorthand for either `Lexeme` or `Gen`.
-  greedy_lexer: boolean;
+  greedy_lexer?: boolean;
 
   /// Only applies to greedy_lexer grammars.
   /// This adds a new lexeme that will be ignored when parsing.
