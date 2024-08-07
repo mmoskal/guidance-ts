@@ -5,18 +5,22 @@
   "types": "dist/src/index.d.ts",
   "type": "module",
   "license": "MIT",
+  "files": [
+    "dist",
+    "src",
+    "tsconfig.json"
+  ],
   "scripts": {
     "go": "./go.sh",
-    "build": "tsc -p . && esbuild src/index.ts --bundle --platform=node --format=esm --sourcemap --outfile=dist/index.js",
+    "build": "tsc -p . && esbuild src/index.ts --bundle --platform=browser --format=esm --sourcemap --outfile=dist/index.js",
     "test": "uvu -r esbuild-register test"
   },
-  "dependencies": {
+  "devDependencies": {
     "@types/node": "^20.14.10",
     "chalk": "^5.3.0",
     "dotenv": "^16.4.5",
     "esbuild": "^0.23.0",
     "esbuild-register": "^3.5.0",
-    "node-fetch": "^3.3.2",
     "typescript": "^5.5.3",
     "uvu": "^0.5.6"
   }

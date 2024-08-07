@@ -1,6 +1,3 @@
-import fetch from "node-fetch";
-import { Readable } from "stream";
-import { TextDecoder } from "util";
 import { RequestOptions } from "./client";
 
 export async function postAndRead(options: RequestOptions): Promise<{}> {
@@ -27,11 +24,12 @@ export async function postAndRead(options: RequestOptions): Promise<{}> {
   });
 
   if (!response.ok) {
-    const pref = `Invalid HTTP response.\nRequest: ${method} ${info}\n` +
+    const pref =
+      `Invalid HTTP response.\nRequest: ${method} ${info}\n` +
       `Status: ${response.status} ${response.statusText}\n`;
     let text = "";
     try {
-      text = "Body: " + await response.text();
+      text = "Body: " + (await response.text());
     } catch (e) {
       text = e.toString();
     }
@@ -40,13 +38,15 @@ export async function postAndRead(options: RequestOptions): Promise<{}> {
 
   if (!lineCb) return await response.json();
 
-  const reader = response.body as Readable;
+  const reader = response.body.getReader();
   const decoder = new TextDecoder();
-
   let partialData = "";
 
-  for await (const chunk of reader) {
-    partialData += decoder.decode(chunk, { stream: true });
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    partialData += decoder.decode(value, { stream: true });
 
     let lines = partialData.split("\n");
     partialData = lines.pop() || "";
