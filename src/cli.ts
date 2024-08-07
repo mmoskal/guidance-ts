@@ -25,7 +25,7 @@ async function main() {
   // console.log(JSON.stringify(g.serialize(), null, 1));
 
   const session = new Session(process.env["AZURE_GUIDANCE_URL"]);
-  const seq = new Generation(session, "7 * 8", g);
+  const seq = session.generation({ grammar: g, prompt: "7 * 8" });
   // seq.logLevel = 4;
   seq.onText = (t) => {
     if (t.is_generated && !t.str.includes("\uFFFD")) {

@@ -203,10 +203,18 @@ export interface RunForkResponse {
   micros: number;
 }
 
+export type AssistantPromptRole = "system" | "user" | "assistant";
+
+export interface AssistantPrompt {
+  role: AssistantPromptRole;
+  content: string;
+}
+
 export interface RunRequest {
   controller: string;
   controller_arg: { grammar: TopLevelGrammar };
   prompt?: string; // Optional with a default value
+  messages?: AssistantPrompt[]; // Optional with a default value
   temperature?: number; // Optional with a default value of 0.0
   top_p?: number; // Optional with a default value of 1.0
   top_k?: number; // Optional with a default value of -1

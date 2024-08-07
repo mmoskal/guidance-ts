@@ -1,4 +1,5 @@
 import {
+  AssistantPrompt,
   InitialRunResponse,
   OutCapture,
   OutText,
@@ -62,6 +63,13 @@ export interface RequestOptions {
   lineCb?: (s: string) => void;
 }
 
+export interface GenerationOptions {
+  prompt?: string;
+  messages?: AssistantPrompt[];
+  grammar: GrammarNode;
+  maxTokens?: number;
+}
+
 export class Session {
   constructor(private connectionString: string) {
     const info = mkUrl("run", connectionString);
@@ -86,14 +94,14 @@ export class Session {
       },
     });
   }
+
+  generation(options: GenerationOptions) {
+    return new SessionGeneration(this, options);
+  }
 }
 
-export class Generation {
-  constructor(
-    private session: Session,
-    private prompt: string,
-    private grammar: GrammarNode
-  ) {}
+export abstract class Generation {
+  constructor(protected options: GenerationOptions) {}
 
   lastUsage: RunUsageResponse;
   logLevel = 1;
@@ -131,28 +139,9 @@ export class Generation {
     return this.listCaptures.get(name)?.map((v) => v.str);
   }
 
-  async run() {
-    const arg: RunRequest = {
-      controller: "llguidance",
-      controller_arg: { grammar: this.grammar.serialize() },
-      prompt: this.prompt,
-      temperature: 0.0,
-      max_tokens: 1000,
-    };
-    assert(!this.started);
-    this.started = true;
-    if (this.logLevel >= 4) {
-      console.log(`POST ${this.session.resolvePath("run").info}`);
-      console.log(JSON.stringify(arg));
-    }
-    return await this.session.request({
-      url: "run",
-      data: arg,
-      lineCb: (s) => this.handleLine(s),
-    });
-  }
+  abstract run(): Promise<void>;
 
-  private handleParserOutput(output: ParserOutput) {
+  protected handleParserOutput(output: ParserOutput) {
     switch (output.object) {
       case "capture":
         if (output.name.startsWith(Gen.LIST_APPEND_PREFIX)) {
@@ -171,6 +160,34 @@ export class Generation {
         this.onText(output);
         break;
     }
+  }
+}
+
+class SessionGeneration extends Generation {
+  constructor(private session: Session, options: GenerationOptions) {
+    super(options);
+  }
+
+  async run() {
+    const arg: RunRequest = {
+      controller: "llguidance",
+      controller_arg: { grammar: this.options.grammar.serialize() },
+      prompt: this.options.prompt,
+      messages: this.options.messages,
+      temperature: 0.0,
+      max_tokens: this.options.maxTokens ?? 100,
+    };
+    assert(!this.started);
+    this.started = true;
+    if (this.logLevel >= 4) {
+      console.log(`POST ${this.session.resolvePath("run").info}`);
+      console.log(JSON.stringify(arg));
+    }
+    await this.session.request({
+      url: "run",
+      data: arg,
+      lineCb: (s) => this.handleLine(s),
+    });
   }
 
   private handleLine(serverLine: string) {
