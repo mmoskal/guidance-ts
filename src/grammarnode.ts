@@ -154,7 +154,7 @@ export class Gen extends GrammarNode {
     const stop = this.stop
       ? s.regex(this.stop)
       : this._inferStop !== undefined
-      ? s.regex(RegexNode.literal(this._inferStop))
+      ? this._inferStop
       : undefined;
     if (stop === undefined) throw new Error(`can't infer gen({ stop: ... })`);
     return {

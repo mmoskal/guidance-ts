@@ -21,6 +21,8 @@ async function main() {
   let g = grm`= ${gen("res", /[0-9]+/, { stop: "\n" })}\n`;
   g = characterMaker("elf", "A swift warrior", ["pencil", "fork"]);
 
+  // g = grm`A poem:\n${gen()}`;
+
   // console.log(g.pp());
   // console.log(JSON.stringify(g.serialize(), null, 1));
 
