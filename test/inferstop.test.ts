@@ -20,10 +20,12 @@ test("infer stop", () => {
 
   tstInfer(".", (stop) => grm`${gen({ stop })}.`);
   tstInfer(".", (stop) => grm`${gen({ stop })}${select(".a", ".b")}`);
+  tstInfer("", (stop) => grm`${gen({ stop })}`);
+
 });
 
 test("infer error", () => {
-  assert.throws(() => grm`${gen()}`.serialize(), /infer/);
+  // assert.throws(() => grm`${gen()}`.serialize(), /infer/);
   assert.throws(() => grm`${gen()}${gen()}`, /followed/);
   assert.throws(() => grm`${gen()}${select("XXX", "YYY")}`, /XXX/);
   const g = gen();

@@ -4,7 +4,7 @@ set -e
 ESBUILD=./node_modules/.bin/esbuild
 $ESBUILD src/cli.ts \
     --bundle \
-    --platform=node --format=esm \
+    --platform=node --format=cjs \
     --sourcemap \
-    --outfile=dist/cli.js
-node dist/cli.js
+    --outfile=dist/cli.cjs
+node dist/cli.cjs

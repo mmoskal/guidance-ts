@@ -26,6 +26,12 @@ export abstract class GrammarNode extends BaseNode {
   abstract serializeInner(s: Serializer): NodeJSON;
 
   serialize(): TopLevelGrammar {
+    const gens = this.rightNodes().filter(
+      (n) => n instanceof Gen && n.stop === undefined
+    ) as Gen[];
+    for (const g of gens) {
+      if (g._inferStop === undefined) g._inferStop = "";
+    }
     return new NestedGrammar(this).serialize();
   }
 
