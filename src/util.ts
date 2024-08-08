@@ -9,7 +9,7 @@ export function panic(msg?: string): never {
 }
 
 export function uint8arrayFromHex(hex: string): Uint8Array {
-  if (hex === undefined) return undefined;
+  if (!hex) return new Uint8Array();
   return new Uint8Array(
     hex.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16))
   );

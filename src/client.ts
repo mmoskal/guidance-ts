@@ -139,6 +139,8 @@ export abstract class Generation {
     return this.listCaptures.get(name)?.map((v) => v.str);
   }
 
+  destroy() {}
+
   abstract run(): Promise<void>;
 
   protected handleParserOutput(output: ParserOutput) {
