@@ -27,6 +27,20 @@ export interface GrammarWithLexer {
 
   /// When set, the regexps can be referenced by their id (position in this list).
   rx_nodes: RegexJSON[];
+
+  /// If set, the grammar will allow skip_rx as the first lexeme.
+  allow_initial_skip?: boolean;
+
+  /// Normally, when a sequence of bytes is forced by grammar, it is tokenized
+  /// canonically and forced as tokens.
+  /// With `no_forcing`, we let the model decide on tokenization.
+  /// This generally reduces both quality and speed, so should not be used
+  /// outside of testing.
+  no_forcing?: boolean;
+
+  /// If set, the grammar will allow invalid utf8 byte sequences.
+  /// Any Unicode regex will cause an error.
+  allow_invalid_utf8?: boolean;
 }
 
 export type NodeJSON =
@@ -78,13 +92,22 @@ export interface NodeGen extends NodeProps {
 }
 
 export interface NodeLexeme extends NodeProps {
+  /// The regular expression that will greedily match the input.
   rx: RegexSpec;
+
+  /// If false, all other lexemes are excluded when this lexeme is recognized.
+  /// This is normal behavior for keywords in programming languages.
+  /// Set to true for eg. a JSON schema with both `/"type"/` and `/"[^"]*"/` as lexemes,
+  /// or for "get"/"set" contextual keywords in C#.
   contextual?: boolean;
+
+  /// Override sampling temperature.
   temperature?: number;
 }
 
 export interface NodeGenGrammar extends NodeProps {
   grammar: GrammarId;
+
   /// Override sampling temperature.
   temperature?: number;
 }
