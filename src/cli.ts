@@ -18,7 +18,7 @@ import { uint8arrayFromHex } from "./util";
 import chalk from "chalk";
 
 async function main() {
-  let g = grm`${gen("res", /[A-Z \n]+/, { })}`;
+  let g = grm`${gen("res", /[A-Z \n]+/, { maxTokens: 600 })}`;
   // g = characterMaker("elf", "A swift warrior", ["pencil", "fork"]);
 
   // g = grm`A poem:\n${gen()}`;

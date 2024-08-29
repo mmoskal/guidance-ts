@@ -177,7 +177,7 @@ class SessionGeneration extends Generation {
       prompt: this.options.prompt,
       messages: this.options.messages,
       temperature: 0.0,
-      max_tokens: this.options.maxTokens ?? 100,
+      max_tokens: this.options.maxTokens ?? undefined,
     };
     assert(!this.started);
     this.started = true;
