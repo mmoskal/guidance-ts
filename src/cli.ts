@@ -18,8 +18,8 @@ import { uint8arrayFromHex } from "./util";
 import chalk from "chalk";
 
 async function main() {
-  let g = grm`= ${gen("res", /[0-9]+/, { stop: "\n" })}\n`;
-  g = characterMaker("elf", "A swift warrior", ["pencil", "fork"]);
+  let g = grm`${gen("res", /[A-Z \n]+/, { })}`;
+  // g = characterMaker("elf", "A swift warrior", ["pencil", "fork"]);
 
   // g = grm`A poem:\n${gen()}`;
 
@@ -27,7 +27,15 @@ async function main() {
   // console.log(JSON.stringify(g.serialize(), null, 1));
 
   const session = new Session(process.env["AZURE_GUIDANCE_URL"]);
-  const seq = session.generation({ grammar: g, prompt: "7 * 8" });
+  const seq = session.generation({
+    grammar: g,
+    messages: [
+      {
+        role: "user",
+        content: "Write a poem",
+      },
+    ],
+  });
   // seq.logLevel = 4;
   seq.onText = (t) => {
     if (t.is_generated && !t.str.includes("\uFFFD")) {

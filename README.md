@@ -54,6 +54,9 @@ If you set it to `https://somewhere.com/guidance#auth=secret`
 it will set `Authorization` header to `Bearer secret`
 and hit `https://somewhere.com/guidance`.
 
+You can deploy `Phi-3.5-mini-instruct` model in Azure ML (it's pay-per-token).
+Then the `AZURE_GUIDANCE_URL` will be something like:
+`https://mydeployment.eastus2.models.ai.azure.com/guidance#auth=AbCdE..123`
 
 Then, create a `Generation` for the grammar:
 
@@ -62,8 +65,3 @@ const g = new Generation(session, "7 * 8", grm` = ${gen("res", /[0-9]+/, { stop:
 await g.start()
 console.log(g.getCapture("res"))
 ```
-
-
-## TODO
-
-- [x] add API for talking to the server
