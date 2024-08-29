@@ -103,6 +103,23 @@ export interface NodeLexeme extends NodeProps {
 
   /// Override sampling temperature.
   temperature?: number;
+
+  /// When set, the lexeme will be quoted as a JSON string.
+  /// For example, /[a-z"]+/ will be quoted as /([a-z]|\\")+/
+  json_string?: boolean;
+
+  /// It lists the allowed escape sequences, typically one of:
+  /// "nrbtf\\\"u" - to allow all JSON escapes, including \u00XX for control characters
+  ///     this is the default
+  /// "nrbtf\\\"" - to disallow \u00XX control characters
+  /// "nrt\\\"" - to also disallow unusual escapes (\f and \b)
+  /// "" - to disallow all escapes
+  /// Note that \uXXXX for non-control characters (code points above U+001F) are never allowed,
+  /// as they never have to be quoted in JSON.
+  json_allowed_escapes?: string;
+
+  /// When set and json_string is also set, "..." will not be added around the regular expression.
+  json_raw?: boolean;
 }
 
 export interface NodeGenGrammar extends NodeProps {
@@ -174,7 +191,28 @@ export interface OutCapture extends BytesOutput {
 
 export interface OutFinalText extends BytesOutput {
   object: "final_text";
+  stop_reason: StopReason;
 }
+
+export type StopReason =
+  /// Parser has not emitted stop() yet.
+  | "NotStopped"
+  /// max_tokens limit on the total number of tokens has been reached.
+  | "MaxTokensTotal"
+  /// max_tokens limit on the number of tokens in the top-level parser has been reached.
+  | "MaxTokensParser"
+  /// Top-level parser indicates that no more bytes can be added.
+  | "NoExtension"
+  /// Top-level parser indicates that no more bytes can be added, however it was recognized late.
+  | "NoExtensionBias"
+  /// Top-level parser allowed EOS (as it was in an accepting state), and EOS was generated.
+  | "EndOfSentence"
+  /// Something went wrong with creating a nested parser.
+  | "InternalError"
+  /// The lexer is too complex
+  | "LexerTooComplex"
+  /// The parser is too complex
+  | "ParserTooComplex";
 
 export interface OutText extends BytesOutput {
   object: "text";
