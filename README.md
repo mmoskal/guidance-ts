@@ -1,6 +1,6 @@
 # guidance.ts
 
-This library implements a TypeScript interface for `llguidance`.
+This library implements a TypeScript interface for [llguidance](https://github.com/microsoft/llguidance).
 It is inspired by Python [Guidance](https://github.com/guidance-ai/guidance).
 
 The user of the library construct grammars (`GrammarNode` class),
