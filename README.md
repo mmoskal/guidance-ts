@@ -65,3 +65,32 @@ const g = new Generation(session, "7 * 8", grm` = ${gen("res", /[0-9]+/, { stop:
 await g.start()
 console.log(g.getCapture("res"))
 ```
+
+
+Here's another example, ported from Guidance README:
+
+```ts
+function characterMaker(
+  id: string,
+  description: string,
+  valid_weapons: string[]
+) {
+  const item = gen("item", { listAppend: true, stop: '"' });
+  return grm`\
+    The following is a character profile for an RPG game in JSON format.
+    \`\`\`json
+    {
+        "id": "${id}",
+        "description": "${description}",
+        "name": "${gen("name", { stop: '"' })}",
+        "age": ${gen("age", /[0-9]+/, { stop: "," })},
+        "armor": "${capture("armor", select("leather", "chainmail", "plate"))}",
+        "weapon": "${capture("weapon", select(...valid_weapons))}",
+        "class": "${gen("class", { stop: '"' })}",
+        "mantra": "${gen("mantra", { stop: '"' })}",
+        "strength": ${gen("strength", /[0-9]+/, { stop: "," })},
+        "items": ["${item}", "${item}", "${item}"]
+    }\`\`\`
+  `;
+}
+```
