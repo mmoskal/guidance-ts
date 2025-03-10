@@ -12,17 +12,9 @@ export interface LLGrammar {
   grammars: Array<LarkGrammar | JsonGrammar>;
 }
 
-export abstract class ASTNode {
-  simplify(): ASTNode {
-    return this;
-  }
-}
+export abstract class ASTNode {}
 
 export abstract class GrammarNode extends ASTNode {
-  simplify(): GrammarNode {
-    return this;
-  }
-
   children(): GrammarNode[] {
     return [];
   }
@@ -69,16 +61,6 @@ export class SelectNode extends GrammarNode {
   isNull(): boolean {
     return this.alternatives.every((alt) => alt.isNull());
   }
-  simplify(): GrammarNode {
-    if (this.isNull()) return new LiteralNode("");
-    const alts = this.alternatives
-      .map((alt) => alt.simplify())
-      .filter((alt) => !alt.isNull());
-    const node = alts.length === 1 ? alts[0] : new SelectNode(alts);
-    if (this.alternatives.some((alt) => alt.isNull()))
-      return new RepeatNode(node, 0, 1);
-    return node;
-  }
   children(): GrammarNode[] {
     return this.alternatives;
   }
@@ -90,13 +72,6 @@ export class JoinNode extends GrammarNode {
   }
   isNull(): boolean {
     return this.nodes.every((node) => node.isNull());
-  }
-  simplify(): GrammarNode {
-    if (this.isNull()) return new LiteralNode("");
-    const simplified = this.nodes
-      .map((node) => node.simplify())
-      .filter((node) => !node.isNull());
-    return simplified.length === 1 ? simplified[0] : new JoinNode(simplified);
   }
   children(): GrammarNode[] {
     return this.nodes;
@@ -118,9 +93,6 @@ export class RepeatNode extends GrammarNode {
   }
   children(): GrammarNode[] {
     return [this.node];
-  }
-  simplify(): GrammarNode {
-    return new RepeatNode(this.node.simplify(), this.min, this.max);
   }
 }
 
@@ -267,7 +239,6 @@ export class LLSerializer {
   }
 }
 
-// LarkSerializer
 export class LarkSerializer {
   public rules: { [name: string]: string } = {};
   public names: Map<RuleNode, string> = new Map();
@@ -335,7 +306,7 @@ export class LarkSerializer {
         attrs.push(`stop_capture=${JSON.stringify(node.stop_capture)}`);
       }
       if (attrs.length > 0) res += `[${attrs.join(", ")}]`;
-      res += ": " + this.visit(node.value.simplify(), true);
+      res += ": " + this.visit(simplify(node.value), true);
       this.rules[name] = res;
       return name;
     }
@@ -400,4 +371,34 @@ export class LarkSerializer {
     const escaped = pattern.replace(/(?<!\\)\//g, "\\/").replace(/\n/g, "\\n");
     return `/${escaped}/`;
   }
+}
+
+export function simplify(node: GrammarNode): GrammarNode {
+  if (node instanceof SelectNode) {
+    if (node.isNull()) return new LiteralNode("");
+    const simplifiedAlts = node.alternatives
+      .map(simplify)
+      .filter((alt) => !alt.isNull());
+    const simplifiedNode =
+      simplifiedAlts.length === 1
+        ? simplifiedAlts[0]
+        : new SelectNode(simplifiedAlts);
+    if (node.alternatives.some((alt) => alt.isNull()))
+      return new RepeatNode(simplifiedNode, 0, 1);
+    return simplifiedNode;
+  } else if (node instanceof JoinNode) {
+    if (node.isNull()) return new LiteralNode("");
+    const simplifiedNodes = node.nodes
+      .map(simplify)
+      .filter((child) => !child.isNull());
+    return simplifiedNodes.length === 1
+      ? simplifiedNodes[0]
+      : new JoinNode(simplifiedNodes);
+  } else if (node instanceof RepeatNode) {
+    return new RepeatNode(simplify(node.node), node.min, node.max);
+  }
+  if (node.children().length > 0)
+    throw new Error("Unexpected node type: " + node.constructor.name);
+  // For child-less nodes, return as is
+  return node;
 }
