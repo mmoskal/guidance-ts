@@ -1,19 +1,16 @@
 import {
-  Gen,
+  LiteralNode,
+  RegexNode,
   GrammarNode,
-  Grammar,
-  Join,
-  Lexeme,
-  Select,
-  StringLiteral,
-} from "./grammarnode";
-import { RegexNode, BaseNode } from "./regexnode";
+  RuleNode,
+  JoinNode,
+  SelectNode,
+  RepeatNode,
+} from "./ast";
 import { assert } from "./util";
 
-export { GrammarNode, RegexNode, BaseNode };
-export type { Grammar };
-
-export type RegexDef = RegExp | RegexNode;
+export type RegexDef = RegExp | GrammarNode;
+export type Grammar = string | GrammarNode;
 
 export interface GenOptions {
   name?: string;
@@ -29,7 +26,7 @@ function isPlainObject(obj: any): boolean {
 }
 
 function isRegexDef(obj: any): boolean {
-  return obj instanceof RegExp || obj instanceof RegexNode;
+  return obj instanceof RegExp || obj instanceof GrammarNode;
 }
 
 export function gen(options?: GenOptions): GrammarNode;
@@ -50,72 +47,69 @@ export function gen(...args: any[]): GrammarNode {
   if (isPlainObject(args[0])) options = args.shift();
   assert(args.length == 0);
 
-  const stop = !options.stop
-    ? undefined
-    : typeof options.stop == "string"
-    ? RegexNode.literal(options.stop)
-    : RegexNode.from(options.stop);
-  const g = new Gen(RegexNode.from(regex ?? options.regex ?? /.*/), stop);
-  if (options.maxTokens !== undefined) g.maxTokens = options.maxTokens;
-  if (options.temperature !== undefined) g.temperature = options.temperature;
+  const stop = !options.stop ? undefined : GrammarNode.from(options.stop);
+
   name ??= options.name;
 
-  if (name !== undefined) {
-    if (options.listAppend) name = Gen.LIST_APPEND_PREFIX + name;
-    // TODO-SERVER: capture name on gen doesn't work
-    const r = new Join([g]);
-    r.captureName = name;
-    return r;
-  }
+  const body = RegexNode.from(regex ?? options.regex ?? /.*/);
+  const g = new RuleNode(name ?? "r", body);
+
+  if (options.maxTokens !== undefined) g.maxTokens = options.maxTokens;
+  if (options.temperature !== undefined) g.temperature = options.temperature;
+  if (options.listAppend) g.listAppend = true;
+  if (name !== undefined) g.capture = name;
+  g.stop = stop;
 
   return g;
 }
 
 export function capture(name: string, grammar: Grammar) {
-  const r = new Join([GrammarNode.from(grammar)]);
-  r.captureName = name;
-  return r;
+  const g = new RuleNode(name, GrammarNode.from(grammar));
+  return g;
 }
 
 export function select(...values: Grammar[]) {
-  return new Select(values.map(GrammarNode.from));
+  return new SelectNode(values.map(GrammarNode.from));
 }
 
 export function join(...values: Grammar[]) {
-  return new Join(values.map(GrammarNode.from));
+  return new JoinNode(values.map(GrammarNode.from));
 }
 
 export function lexeme(rx: RegexDef) {
-  return new Lexeme(RegexNode.from(rx));
+  return RegexNode.from(rx);
 }
 
 export function keyword(s: string) {
-  return new Lexeme(RegexNode.literal(s), true);
+  return new LiteralNode(s);
 }
 
 export function str(s: string) {
-  return new StringLiteral(s);
+  return new LiteralNode(s);
+}
+
+export function repeat(g: Grammar, min: number, max: number | null) {
+  return new RepeatNode(GrammarNode.from(g), min, max);
 }
 
 export function oneOrMore(g: Grammar) {
-  const inner = GrammarNode.from(g);
-  const n = new Select([inner]);
-  n.among.push(join(n, inner));
-  return n;
+  return repeat(g, 1, null);
 }
 
 export function zeroOrMore(g: Grammar) {
-  const n = new Select([str("")]);
-  n.among.push(join(n, g));
-  return n;
+  return repeat(g, 0, null);
+}
+
+export function optional(g: Grammar) {
+  return repeat(g, 0, 1);
 }
 
 function concatStrings(acc: GrammarNode[]) {
   for (let i = 1; i < acc.length; ++i) {
     const a = acc[i - 1];
     const b = acc[i];
-    if (a instanceof StringLiteral && b instanceof StringLiteral) {
-      acc[i - 1] = str(a.literal + b.literal);
+    if (a instanceof LiteralNode && b instanceof LiteralNode) {
+      acc[i - 1] = str(a.value + b.value);
       acc.splice(i, 1);
       i--;
     }
@@ -213,5 +207,5 @@ export function grm(
 
   if (acc.length == 0) return str("");
   else if (acc.length == 1) return acc[0];
-  else return new Join(acc);
+  else return new JoinNode(acc);
 }

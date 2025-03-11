@@ -1,6 +1,5 @@
 import {
   gen,
-  GrammarNode,
   grm,
   keyword,
   lexeme,
