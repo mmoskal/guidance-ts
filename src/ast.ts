@@ -15,7 +15,7 @@ export interface LLGrammar {
 export abstract class ASTNode {}
 
 export abstract class GrammarNode extends ASTNode {
-  children(): GrammarNode[] {
+  children(): ReadonlyArray<GrammarNode> {
     return [];
   }
 
@@ -34,8 +34,18 @@ export abstract class GrammarNode extends ASTNode {
     return this.children().every((child) => child.isTerminal());
   }
 
-  ll_grammar(): LLGrammar {
+  llGrammar(): LLGrammar {
     return new LLSerializer().serialize(this);
+  }
+
+  static from(grammar: string | GrammarNode | RegExp): GrammarNode {
+    if (typeof grammar === "string") {
+      return new LiteralNode(grammar);
+    }
+    if (grammar instanceof RegExp) {
+      return new RegexNode(grammar.source);
+    }
+    return grammar;
   }
 }
 
@@ -61,7 +71,7 @@ export class SelectNode extends GrammarNode {
   isNull(): boolean {
     return this.alternatives.every((alt) => alt.isNull());
   }
-  children(): GrammarNode[] {
+  children(): ReadonlyArray<GrammarNode> {
     return this.alternatives;
   }
 }
@@ -73,7 +83,7 @@ export class JoinNode extends GrammarNode {
   isNull(): boolean {
     return this.nodes.every((node) => node.isNull());
   }
-  children(): GrammarNode[] {
+  children(): ReadonlyArray<GrammarNode> {
     return this.nodes;
   }
 }
@@ -82,16 +92,16 @@ export class RepeatNode extends GrammarNode {
   constructor(
     public node: GrammarNode,
     public min: number,
-    public max?: number
+    public max: number | null
   ) {
     super();
     if (min < 0) throw new Error("min must be >= 0");
-    if (max !== undefined && max < min) throw new Error("max must be >= min");
+    if (max !== null && max < min) throw new Error("max must be >= min");
   }
   isNull(): boolean {
     return this.node.isNull() || (this.min === 0 && this.max === 0);
   }
-  children(): GrammarNode[] {
+  children(): ReadonlyArray<GrammarNode> {
     return [this.node];
   }
 }
@@ -114,20 +124,20 @@ export class SubstringNode extends GrammarNode {
  */
 export class RuleNode extends GrammarNode {
   public capture?: string;
-  public list_append: boolean = false;
+  public listAppend: boolean = false;
   public temperature?: number;
-  public max_tokens?: number;
-  public stop?: RegexNode | LiteralNode;
-  public suffix?: LiteralNode;
-  public stop_capture?: string;
+  public maxTokens?: number;
+  public stop?: GrammarNode;
+  public suffix?: GrammarNode;
+  public stopCapture?: string;
   constructor(public name: string, public value: GrammarNode) {
     super();
     if (
       (this.temperature !== undefined ||
-        this.max_tokens !== undefined ||
+        this.maxTokens !== undefined ||
         this.stop !== undefined ||
         this.suffix !== undefined ||
-        this.stop_capture !== undefined) &&
+        this.stopCapture !== undefined) &&
       !(this.value.isTerminal() || this.value instanceof BaseSubgrammarNode)
     ) {
       throw new Error(
@@ -139,15 +149,15 @@ export class RuleNode extends GrammarNode {
     return (
       this.capture === undefined &&
       this.temperature === undefined &&
-      this.max_tokens === undefined &&
+      this.maxTokens === undefined &&
       this.stop === undefined &&
       this.suffix === undefined &&
-      this.stop_capture === undefined &&
+      this.stopCapture === undefined &&
       this.value.isTerminal() &&
       !(this.value instanceof BaseSubgrammarNode)
     );
   }
-  children(): GrammarNode[] {
+  children(): ReadonlyArray<GrammarNode> {
     return [this.value];
   }
 }
@@ -283,7 +293,7 @@ export class LarkSerializer {
       const attrs: string[] = [];
       if (node.capture !== undefined) {
         let captureName = node.capture;
-        if (node.list_append) {
+        if (node.listAppend) {
           captureName = `__LIST_APPEND:${captureName}`;
         }
         attrs.push(`capture=${JSON.stringify(captureName)}`);
@@ -293,8 +303,8 @@ export class LarkSerializer {
       if (node.temperature !== undefined) {
         attrs.push(`temperature=${node.temperature}`);
       }
-      if (node.max_tokens !== undefined) {
-        attrs.push(`max_tokens=${node.max_tokens}`);
+      if (node.maxTokens !== undefined) {
+        attrs.push(`max_tokens=${node.maxTokens}`);
       }
       if (node.stop) {
         attrs.push(`stop=${this.visit(node.stop)}`);
@@ -302,8 +312,8 @@ export class LarkSerializer {
       if (node.suffix) {
         attrs.push(`suffix=${this.visit(node.suffix)}`);
       }
-      if (node.stop_capture !== undefined) {
-        attrs.push(`stop_capture=${JSON.stringify(node.stop_capture)}`);
+      if (node.stopCapture !== undefined) {
+        attrs.push(`stop_capture=${JSON.stringify(node.stopCapture)}`);
       }
       if (attrs.length > 0) res += `[${attrs.join(", ")}]`;
       res += ": " + this.visit(simplify(node.value), true);
@@ -343,10 +353,10 @@ export class LarkSerializer {
       if (node.node instanceof JoinNode || node.node instanceof RepeatNode) {
         inner = `(${inner})`;
       }
-      if (node.min === 0 && node.max === undefined) return `${inner}*`;
-      if (node.min === 1 && node.max === undefined) return `${inner}+`;
+      if (node.min === 0 && node.max === null) return `${inner}*`;
+      if (node.min === 1 && node.max === null) return `${inner}+`;
       if (node.min === 0 && node.max === 1) return `${inner}?`;
-      if (node.max === undefined) return `${inner}{${node.min},}`;
+      if (node.max === null) return `${inner}{${node.min},}`;
       return `${inner}{${node.min},${node.max}}`;
     }
     if (node instanceof SubstringNode) {
