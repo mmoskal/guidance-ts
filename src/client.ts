@@ -46,7 +46,7 @@ function mkUrl(path: string, connString: string) {
   } else if (url.endsWith("/guidance") && path === "run") {
     // no change
   } else {
-    url += "/" + path;
+    //url += "/" + path;
   }
 
   info = `${url} (${info})`;
