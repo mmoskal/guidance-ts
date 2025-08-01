@@ -26,7 +26,7 @@ async function main() {
   // console.log(g.pp());
   // console.log(JSON.stringify(g.serialize(), null, 1));
 
-  const session = new Session(process.env["AZURE_GUIDANCE_URL"]);
+  const session = new Session("http://localhost:8000/v1", "Qwen/Qwen3-1.7B");
   const seq = session.generation({
     grammar: g,
     messages: [
