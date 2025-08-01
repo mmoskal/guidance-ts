@@ -56,6 +56,7 @@ export class Session {
       }
     }*/);
     console.log("Response:", response);
+    console.log("Messages:", response.choices[0].message.content);
     return response;
   }
 
