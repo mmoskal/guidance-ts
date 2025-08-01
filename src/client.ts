@@ -44,8 +44,9 @@ export class Session {
   }
 
   async request(options: RequestOptions) {
+    console.log("Options.data:", options.data);
     console.log("Messages:", options.data?.messages);
-    console.log("guided_grammar:", options.data?.grammar?.serialize());
+    console.log("guided_grammar:", options.data?.grammar);
     const response = await this.oai_client.chat.completions.create({
       model: this.model,
       messages: options.data?.messages ?? [],
@@ -146,9 +147,7 @@ class SessionGeneration extends Generation {
     };
     assert(!this.started);
     this.started = true;
-    if (this.logLevel >= 4) {
-      console.log(JSON.stringify(arg));
-    }
+    console.log("arg: RunRequest", JSON.stringify(arg));
     await this.session.request({
       data: arg,
       lineCb: (s) => this.handleLine(s),
