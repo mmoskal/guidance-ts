@@ -1,3 +1,4 @@
+import OpenAI from 'openai';
 import {
   AssistantPrompt,
   InitialRunResponse,
@@ -9,7 +10,6 @@ import {
   RunUsageResponse,
 } from "./api";
 import { Gen, GrammarNode } from "./grammarnode";
-import { postAndRead } from "./nodefetch";
 import {
   assert,
   uint8ArrayConcat,
@@ -17,45 +17,9 @@ import {
   utf8decode,
 } from "./util";
 
-function mkUrl(path: string, connString: string) {
-  const match = /^(.*?)(#.*)?$/.exec(connString);
-  let url = match[1] || "";
-  const fragment = match[2] || "";
 
-  let headers: Record<string, string> = {};
-  let info = "no auth header";
-
-  if (fragment) {
-    const params = new URLSearchParams(fragment.slice(1)); // remove the leading '#'
-    if (params.has("key")) {
-      const key = params.get("key");
-      headers = { "api-key": key };
-      info = `api-key: ${key.slice(0, 2)}...${key.slice(-2)}`;
-    } else if (params.has("auth")) {
-      const key = params.get("auth");
-      headers = { authorization: "Bearer " + key };
-      info = `authorization: Bearer ${key.slice(0, 2)}...${key.slice(-2)}`;
-    }
-  }
-
-  if (url.endsWith("/")) {
-    url = url.slice(0, -1);
-  }
-  if (url.endsWith("/run")) {
-    url = url.slice(0, -4) + "/" + path;
-  } else if (url.endsWith("/guidance") && path === "run") {
-    // no change
-  } else {
-    //url += "/" + path;
-  }
-
-  info = `${url} (${info})`;
-
-  return { url, headers, info };
-}
 
 export interface RequestOptions {
-  url: string;
   info?: string; // included in
   headers?: Record<string, string>;
   method?: string;
@@ -71,28 +35,28 @@ export interface GenerationOptions {
 }
 
 export class Session {
-  constructor(private connectionString: string) {
-    const info = mkUrl("run", connectionString);
-    if (!(info.url.startsWith("http://") || info.url.startsWith("https://")))
-      throw new Error("Invalid URL: " + connectionString);
-    if (Object.keys(info.headers).length == 0)
-      throw new Error("No key in connection string");
-  }
+  private oai_client: OpenAI;
+  private model: string;
 
-  resolvePath(url: string) {
-    return mkUrl(url, this.connectionString);
+  constructor(baseUri: string, targetModel: string) {
+    this.oai_client = new OpenAI({ baseURL: baseUri, apiKey: "" });
+    this.model = targetModel;
   }
 
   async request(options: RequestOptions) {
-    const info = this.resolvePath(options.url);
-    return await postAndRead({
-      ...options,
-      url: info.url,
-      headers: {
-        ...info.headers,
-        ...(options.headers ?? {}),
-      },
-    });
+    console.log("Messages:", options.data?.messages);
+    console.log("guided_grammar:", options.data?.grammar?.serialize());
+    const response = await this.oai_client.chat.completions.create({
+      model: this.model,
+      messages: options.data?.messages ?? [],
+    }, /*{
+      extra_body: {
+        "guided_decoding_backend": "guidance",
+        "guided_grammar": options.data?.grammar?.serialize(),
+      }
+    }*/);
+    console.log("Response:", response);
+    return response;
   }
 
   generation(options: GenerationOptions) {
@@ -101,7 +65,7 @@ export class Session {
 }
 
 export abstract class Generation {
-  constructor(protected options: GenerationOptions) {}
+  constructor(protected options: GenerationOptions) { }
 
   lastUsage: RunUsageResponse;
   logLevel = 1;
@@ -112,9 +76,9 @@ export abstract class Generation {
   started = false;
   warnings: string[] = [];
 
-  onText = (s: OutText) => {};
-  onLog = (s: string) => {};
-  onWarning = (warn: string) => {};
+  onText = (s: OutText) => { };
+  onLog = (s: string) => { };
+  onWarning = (warn: string) => { };
   onError = (err: string) => {
     throw new Error("Server error: " + err);
   };
@@ -139,7 +103,7 @@ export abstract class Generation {
     return this.listCaptures.get(name)?.map((v) => v.str);
   }
 
-  destroy() {}
+  destroy() { }
 
   abstract run(): Promise<void>;
 
@@ -182,11 +146,9 @@ class SessionGeneration extends Generation {
     assert(!this.started);
     this.started = true;
     if (this.logLevel >= 4) {
-      console.log(`POST ${this.session.resolvePath("run").info}`);
       console.log(JSON.stringify(arg));
     }
     await this.session.request({
-      url: "run",
       data: arg,
       lineCb: (s) => this.handleLine(s),
     });
